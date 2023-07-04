@@ -1,0 +1,37 @@
+# Differentiating KD-Tree propagation in Futhark
+
+### Code Structure
+
+A Futhark implementation for the following problem: compute the sum across all querries of the pairwise products of query weight and reference-points weights among the reference points that fall in a certain radius `r` with respect to each querry.
+
+- `brute-force.fut` implements the naive, brute force algorithm
+
+- `buildKDtree.fut` contains the functionality for building a kd-tree from the set of reference points
+
+- `kd-traverse.fut` implements the propagation of each query from the current leaf to the next one to be visisted.
+
+- `knn-iteration` puts together the code for one iteration of the search, i.e., apply brute force for each query in the corresponding leaf + find the next leaf to be visited by each query
+
+- `driver-knn.fut` entry point for the querry propagation through the kdtree (assumes the kd-tree has already been constructed)
+
+### Current results:
+
+- On the current dataset (in folder `data`), Reverse-AD overhead is about 3.2x
+
+- The primal is about 250x faster then the brute force
+
+- The adjoint code is about 150x faster than the corresponding brute force code.
+
+### Sortcommings:
+
+- The current implementation of kd-tree is incorrect, because it always splits the current set of points into two equal parts. This is not always possible, since there might be several points having the same value as the median on the to-be-split dimension. This can be fixed by allowing the leafs to hold different number of points and by modifying the traversal so that the per-leaf search is padded to the maximal number of points that a leaf holds.
+
+- Currently, in the propagation part (`kd-traverse.fut`), several `while` loops have to be re-written as `do` loops by chosing a maximal count. Otherwise, this results in "irregular allocation inside kernel" error with the cuda/opencl backend.  In principle, the checkpointing of those while loops are not used because that stage of propagation does not contributes to the adjoints. Hence we need to improve the compiler to detect such cases and remove the checkpointed code.
+
+- The outer loop is fixed to count `8`, i.e., each querry searches at most `8` leaves. This seems to be enough for the current dataset, but obviously is incorrect. The outer loops should be a while loop, which iterates until all queries have finished the traversal. However, that would be very expensive in terms of memory because that loops should be checkpointed. Luckily, that is not necessary -- see next section.
+
+### Optimizations:
+
+- The outer loop that performs the propagation through the kd-tree is partially commutative, i.e., it does not have to be reverted (in the rev-ad execution), and hence it does not have to be checkpointed either. This should serve as inspiration for devising an annotation that is statically checked and optimizes the reverse-ad code generation.
+
+- If the problem is extended such that the result is a sequence of sums, each for a different radius value, then additional temporal-locality optimizations are possible, e.g., by interchanging the outer loop over `vjp` calls to the inward position.
