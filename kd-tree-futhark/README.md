@@ -16,11 +16,18 @@ A Futhark implementation for the following problem: compute the sum across all q
 
 ### Current results:
 
-- On the current dataset (in folder `data`), Reverse-AD overhead is about 3.2x
+- On the current dataset (in folder `data`), Reverse-AD overhead is about ~~3.2x~~
 
 - The primal is about 250x faster then the brute force
 
-- The adjoint code is about 150x faster than the corresponding brute force code.
+- ~~The adjoint code is about 150x faster than the corresponding brute force code.~~
+
+Compiler dependency analysis removed unused adjoints, so the overhead is about 1.1x now.
+
+> driver-knn.fut:primal (no tuning file):
+> data/kdtree-prop-refs-512K-queries-1M.in:      75086μs (95% CI: [   74954.4,    75349.1])
+> driver-knn.fut:revad (no tuning file):
+> data/kdtree-prop-refs-512K-queries-1M.in:      82499μs (95% CI: [   82289.2,    82623.1])
 
 ### Sortcommings:
 
