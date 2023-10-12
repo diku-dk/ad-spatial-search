@@ -90,3 +90,48 @@ entry revad [d][n][m][m'][q]
     let (res, (query_ws_adj, ref_ws_adj)) =
           rev_prop sq_radius refs_pts indir (zip3 median_dims median_vals clanc_eqdim) queries (query_ws, ref_ws)
     in  (res, query_ws_adj, ref_ws_adj)
+
+-- ==
+-- entry: map_primal
+--
+-- compiled input @ data/kdtree-prop-refs-512K-queries-1M.in
+-- output @ data/5radiuses-brute-force-primal-refs-512K-queries-1M.out
+entry map_primal [d][n][m][m'][q]
+        (sq_radius: f32)
+        (queries:  [n][d]f32)
+        (query_ws: [n]f32)
+        (ref_ws:   [m]f32)
+        (refs_pts : [m'][d]f32)
+        (indir:     [m']i32)
+        (median_dims : [q]i32)
+        (median_vals : [q]f32)
+        (clanc_eqdim : [q]i32) : [5]f32 =
+    let rs = expand_radius 5 sq_radius
+    let tree = (zip3 median_dims median_vals clanc_eqdim)
+    in map (\sq_radius ->
+      propagate sq_radius refs_pts indir tree queries (query_ws, ref_ws)
+    ) rs
+
+
+-- ==
+-- entry: map_revad
+--
+-- compiled input @ data/kdtree-prop-refs-512K-queries-1M.in
+-- output @ data/5radiuses-brute-force-revad-refs-512K-queries-1M.out
+entry map_revad [d][n][m][m'][q]
+        (sq_radius: f32)
+        (queries:  [n][d]f32)
+        (query_ws: [n]f32)
+        (ref_ws:   [m]f32)
+        (refs_pts : [m'][d]f32)
+        (indir:     [m']i32)
+        (median_dims : [q]i32)
+        (median_vals : [q]f32)
+        (clanc_eqdim : [q]i32) =
+    let rs = expand_radius 5 sq_radius
+    let tree = (zip3 median_dims median_vals clanc_eqdim)
+    in map (\r ->
+      let (res, (query_ws_adj, ref_ws_adj)) =
+            rev_prop r refs_pts indir tree queries (query_ws, ref_ws)
+      in  (res, query_ws_adj, ref_ws_adj)
+    ) rs |> unzip3
