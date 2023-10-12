@@ -64,5 +64,5 @@ def findClosestCommonAncestor (h: i32) (lev: i32) (node1: i32) (leaf: i32) : i32
         (getParent node1, getParent node2)
     in  res
 
--- Test five radiuses; sq_radius grows 20 percent for each replication.
-def replicate_radius r = tabulate 5 (\i -> 1.2**(f32.i64 i) * r)
+-- `r` grows 20 percent for each replication.
+def expand_radius n r = tabulate n (\i -> 1.2**(f32.i64 i) * r)

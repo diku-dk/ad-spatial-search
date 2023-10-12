@@ -1,16 +1,16 @@
 import "buildKDtree"
-import "knn-iteration"
+import "map-knn-iteration"
 import "util"
 import "kd-traverse"
 
-def propagate [m1][m][q][d][n] (radius: f32)
-                           (ref_pts: [m][d]f32)
-                           (indir:   [m]i32)
-                           (kd_tree: [q](i32,f32,i32))
-                           (queries: [n][d]f32)
-                           (query_ws:[n]f32, ref_ws_orig: [m1]f32)
-                           : f32 =
-
+def propagate [m1][m][q][d][n][r]
+              (radiuses: [r]f32)
+              (ref_pts: [m][d]f32)
+              (indir:   [m]i32)
+              (kd_tree: [q](i32,f32,i32))
+              (queries: [n][d]f32)
+              (query_ws:[n]f32, ref_ws_orig: [m1]f32)
+              : [r]f32 =
   -- rearranging the original weights of the reference points
   -- to match the (re-ordered) position in the kd-tree
   let kd_weights =
@@ -29,12 +29,12 @@ def propagate [m1][m][q][d][n] (radius: f32)
   let (qleaves, query_inds) = sortQueriesByLeavesRadix (h+1) query_leaves
   let dists  = replicate n 0.0f32
   let stacks = replicate n 0i32
-  let res_ws = 0f32
+  let res_ws = replicate r 0f32
 
   let (_qleaves', _stacks', _dists', _query_inds', res_ws') =
-    loop (qleaves : [n]i32, stacks : [n]i32, dists : [n]f32, query_inds : [n]i32, res_ws : f32)
+    loop (qleaves : [n]i32, stacks : [n]i32, dists : [n]f32, query_inds : [n]i32, res_ws : [r]f32)
       for _i < 8 do
-        iterationSorted radius h kd_tree leaves kd_ws_sort queries query_ws qleaves stacks dists query_inds res_ws
+        iterationSorted radiuses h kd_tree leaves kd_ws_sort queries query_ws qleaves stacks dists query_inds res_ws
 
   in  res_ws'
 
@@ -46,12 +46,23 @@ def rev_prop [m1][m][q][d][n][r]
              (queries: [n][d]f32)
              -- diff w.r.t weights of kd-tree
              (query_ws:[n]f32, ref_ws_orig: [m1]f32)
-             : [r](f32, [n]f32, [m1]f32) =
-  map (\radius ->
-    let f = propagate radius ref_pts indir kd_tree queries
-    let (res, (query_ws_adj, ref_ws_adj)) = vjp2 f (query_ws, ref_ws_orig) 1.0f32
-    in (res, query_ws_adj, ref_ws_adj)
-  ) radiuses
+             : ([r]f32, [r][n]f32, [r][m1]f32) =
+  let f = propagate radiuses ref_pts indir kd_tree queries
+  -- we know the directions should be indep. Can we even do [1,1,1,1,1]?
+  -- in tabulate r (\i ->
+  --   let e = (replicate r 0f32) with [i] = 1f32
+  --   let (res, (query_ws_adj, ref_ws_adj)) = vjp2 f (query_ws, ref_ws_orig) e
+  --   -- TODO we only need res from one of the vjp2s (it's the same across i).
+  --   in (res[i], query_ws_adj, ref_ws_adj)
+  -- ) |> unzip3
+  -- TODO We only need res from one of the vjp2s (it's the same across i).
+  -- For now, this seems faster:
+  let (res) = f (query_ws, ref_ws_orig)
+  let (adj1, adj2) = tabulate r (\i ->
+    let e = (replicate r 0f32) with [i] = 1f32
+    in vjp f (query_ws, ref_ws_orig) e
+  ) |> unzip2
+  in (res, adj1, adj2)
 
 -- ==
 -- entry: primal
@@ -68,11 +79,9 @@ entry primal [d][n][m][m'][q]
         (median_dims : [q]i32)
         (median_vals : [q]f32)
         (clanc_eqdim : [q]i32) : [5]f32 =
-    let rs = replicate_radius sq_radius
+    let rs = expand_radius 5 sq_radius
     let tree = (zip3 median_dims median_vals clanc_eqdim)
-    in map (\sq_radius ->
-      propagate sq_radius refs_pts indir tree queries (query_ws, ref_ws)
-    ) rs
+    in propagate rs refs_pts indir tree queries (query_ws, ref_ws)
 
 
 -- ==
@@ -90,9 +99,6 @@ entry revad [d][n][m][m'][q]
         (median_dims : [q]i32)
         (median_vals : [q]f32)
         (clanc_eqdim : [q]i32) : ([5]f32, [5][n]f32, [5][m]f32) =
-    let rs = replicate_radius sq_radius
+    let rs = expand_radius 5 sq_radius
     let tree = (zip3 median_dims median_vals clanc_eqdim)
-    let (results, query_ws_adjs, ref_ws_adjs) =
-      rev_prop rs refs_pts indir tree queries (query_ws, ref_ws)
-      |> unzip3
-    in (results, query_ws_adjs, ref_ws_adjs)
+    in rev_prop rs refs_pts indir tree queries (query_ws, ref_ws)
