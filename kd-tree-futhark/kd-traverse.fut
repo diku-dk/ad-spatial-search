@@ -46,10 +46,7 @@ def traverseOnce [q] [d] (radius: f32) (height: i32)
   let getLevel (node_idx: i32) : i32 = log2 (node_idx+1)
   let getAncSameDimContrib (q_m_i: f32) (node_stack: i32) (node: i32) : f32 =
     (loop (idx, res) = (node, 0.0f32)
-      for _i1 < height+1 do
-      -- while (idx >= 0) do
-      if idx >= 0
-      then
+      while (idx >= 0) do
         let anc = clanc_eqdim[idx] in
         if anc == (-1i32) then (-1i32, 0.0f32)
         else
@@ -57,48 +54,42 @@ def traverseOnce [q] [d] (radius: f32) (height: i32)
           let is_anc_visited = getPackedInd node_stack anc_lev
           in  if !is_anc_visited then (anc, res)
               else (-1i32, median_vals[anc] - q_m_i)
-      else (idx,res)
     ).1
 
   -- go back on the stack and find the new node to be visited
   let (parent_rec, stack, count, dist, rec_node) =
       loop (node_index, stack, count, dist, rec_node) =
            (last_leaf, stack, height, dist, -1)
-           -- while (node_index != 0) && (rec_node < 0) do
-           for _i2 < height+1 do
-           if (node_index != 0) && (rec_node < 0)
-           then
-                let parent = getParent node_index
-                let scnd_visited = getPackedInd stack count --stack[count]
+           while (node_index != 0) && (rec_node < 0) do
+             let parent = getParent node_index
+             let scnd_visited = getPackedInd stack count --stack[count]
 
-                -- visiting condition
-                let q_m_d   = query[median_dims[parent]]
-                let cur_med_dst = median_vals[parent] - q_m_d
-                let cur_med_sqr = cur_med_dst * cur_med_dst
+             -- visiting condition
+             let q_m_d   = query[median_dims[parent]]
+             let cur_med_dst = median_vals[parent] - q_m_d
+             let cur_med_sqr = cur_med_dst * cur_med_dst
 
-                let prv_med_dst = getAncSameDimContrib q_m_d stack parent
-                let prv_med_sqr = prv_med_dst * prv_med_dst
+             let prv_med_dst = getAncSameDimContrib q_m_d stack parent
+             let prv_med_sqr = prv_med_dst * prv_med_dst
 
-                let dist_minu = f32.abs(dist - cur_med_sqr + prv_med_sqr)
-                let dist_plus = f32.abs(dist - prv_med_sqr + cur_med_sqr)
+             let dist_minu = f32.abs(dist - cur_med_sqr + prv_med_sqr)
+             let dist_plus = f32.abs(dist - prv_med_sqr + cur_med_sqr)
 
-                in if scnd_visited
-                   then -- continue backing-up towards the root
-                        (parent, stack, count-1, dist_minu, -1)
-
-                   else -- the node_index is actually the `first` child of parent,
-                        -- since the `second` has not been visited yet
-                       let to_visit = dist_plus <= radius
-                       --let to_visit = (f32.abs cur_med_dst) <= radius
-                       in  if !to_visit
-                           then (parent, stack, count-1, dist, -1)
-                           else -- update the stack
-                                let fst_node = node_index
-                                let snd_node = if (fst_node % 2) == 0 then fst_node-1 else fst_node+1
-                                let stack = setPackedInd stack count true
-                                -- let stack[count] = true
-                                in  (parent, stack, count, dist_plus, snd_node)
-           else (node_index, stack, count, dist, rec_node)
+             in if scnd_visited
+                then -- continue backing-up towards the root
+                     (parent, stack, count-1, dist_minu, -1)
+                else -- the node_index is actually the `first` child of parent,
+                     -- since the `second` has not been visited yet
+                    let to_visit = dist_plus <= radius
+                    --let to_visit = (f32.abs cur_med_dst) <= radius
+                    in  if !to_visit
+                        then (parent, stack, count-1, dist, -1)
+                        else -- update the stack
+                             let fst_node = node_index
+                             let snd_node = if (fst_node % 2) == 0 then fst_node-1 else fst_node+1
+                             let stack = setPackedInd stack count true
+                             -- let stack[count] = true
+                             in  (parent, stack, count, dist_plus, snd_node)
   -- find a new leaf
   let (new_leaf, new_stack, _) =
       if parent_rec == 0 && rec_node == -1
@@ -110,18 +101,14 @@ def traverseOnce [q] [d] (radius: f32) (height: i32)
            -- and stop when you discovered a new leaf
            loop (node_index, stack, count) =
                 (rec_node, stack, count)
-           -- while !(isLeaf height node_index) do
-           for _i3 < height+1 do
-           if isLeaf height node_index
-           then (node_index, stack, count)
-           else
-              let count = count+1
-              let stack = setPackedInd stack count false
-              -- let stack[count] = false
-              let node_index =
-                  if query[median_dims[node_index]] <= median_vals[node_index]
-                  then (node_index+1)*2-1
-                  else (node_index+1)*2
-              in (node_index, stack, count)
+           while !(isLeaf height node_index) do
+             let count = count+1
+             let stack = setPackedInd stack count false
+             -- let stack[count] = false
+             let node_index =
+                 if query[median_dims[node_index]] <= median_vals[node_index]
+                 then (node_index+1)*2-1
+                 else (node_index+1)*2
+             in (node_index, stack, count)
 
   in (new_leaf-i32.i64 q, new_stack, dist)
