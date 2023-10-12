@@ -15,7 +15,7 @@ def propagate [m1][m][q][d][n] (radius: f32)
 
   -- rearranging the original weights of the reference points
   -- to match the (re-ordered) position in the kd-tree
-  let kd_weights = 
+  let kd_weights =
         map i64.i32 indir |>
         map (\ind -> if ind >= m1 then 1.0f32 else ref_ws_orig[ind])
 
@@ -44,7 +44,7 @@ def rev_prop [m1][m][q][d][n] (radius: f32)
                               (ref_pts: [m][d]f32)
                               (indir: [m]i32)
                               (kd_tree: [q](i32,f32,i32))
-                              (queries: [n][d]f32) 
+                              (queries: [n][d]f32)
                               -- diff w.r.t weights of kd-tree
                               (query_ws:[n]f32, ref_ws_orig: [m1]f32)
                               : (f32, ([n]f32, [m1]f32)) =
@@ -59,7 +59,7 @@ def rev_prop [m1][m][q][d][n] (radius: f32)
 
 
 entry primal [d][n][m][m'][q]
-        (sq_radius: f32) 
+        (sq_radius: f32)
         (queries:  [n][d]f32)
         (query_ws: [n]f32)
         (ref_ws:   [m]f32)
@@ -78,7 +78,7 @@ entry primal [d][n][m][m'][q]
 -- output@ data/brute-force-revad-refs-512K-queries-1M.out
 
 entry revad [d][n][m][m'][q]
-        (sq_radius: f32) 
+        (sq_radius: f32)
         (queries:  [n][d]f32)
         (query_ws: [n]f32)
         (ref_ws:   [m]f32)

@@ -7,7 +7,7 @@ def partition2Ind [n] (cs: [n]bool) : ([n]i32, i32) =
     let isF0 = scan (+) 0 ffs
 
     let i = isT[n-1]
-    let isF = map (+ i) isF0 
+    let isF = map (+ i) isF0
     let inds = map3 (\ c iT iF ->
                         if c then iT-1 else iF-1
                     ) cs isT isF

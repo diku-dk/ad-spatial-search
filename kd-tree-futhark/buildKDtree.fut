@@ -5,7 +5,7 @@ def iota32 n = map i32.i64 (iota n)
 
 local def closestLog2 (p: i32) : i32 =
     if p<=1 then 0
-    else let (_,res) = loop (q,r) = (p,0) 
+    else let (_,res) = loop (q,r) = (p,0)
                        while q > 1 do
                             (q >> 1, r+1)
          let err_down = p - (1 << res)
@@ -47,7 +47,7 @@ local def findClosestMed [n] (cur_dim: i32) (median_dims: [n]i32) (node_ind: i32
     let cur_node = node_ind
     let res_ind  = -1i32
     let (_, res) =
-        loop (cur_node, res_ind) 
+        loop (cur_node, res_ind)
           while (cur_node != 0) && (res_ind == (-1i32)) do
             let parent = getParent cur_node
             let res_ind = if median_dims[parent] == cur_dim then parent else -1
@@ -70,7 +70,7 @@ def mkKDtree [m] [d] (height: i32) (q: i64) (m' : i64)
                      (input: [m][d]f32) :
            (*[m'][d]f32, *[m']i32, *[q]i32, *[q]f32, *[q]i32) =
 
---         let (lbs, ubs) = transpose input |> 
+--         let (lbs, ubs) = transpose input |>
 --                          map (\row -> ( reduce f32.min f32.highest row
 --                                       , reduce f32.max f32.lowest  row) )
 --                          |> unzip
@@ -83,7 +83,7 @@ def mkKDtree [m] [d] (height: i32) (q: i64) (m' : i64)
          let num_pads = m' - m
          let input' = input ++ (replicate num_pads (replicate d f32.inf))
          let indir  = iota32 m'
-         
+
          let median_vals = replicate q 0.0f32
          let median_dims = replicate q (-1i32)
          let clanc_eqdim = replicate q (-1i32)
@@ -113,12 +113,12 @@ def mkKDtree [m] [d] (height: i32) (q: i64) (m' : i64)
                                                         (copy lubs)
                             -- chose dimension of highest spread
                             let diffs =
-                                #[sequential] 
+                                #[sequential]
                                 map (\i -> f32.abs(lubs_cur[i+i32.i64 d] - lubs_cur[i])) (iota32 d)
                             let (cur_dim, _) =
                                 #[sequential]
-                                reduce_comm (\ (i1,v1) (i2,v2) -> 
-                                                if v1 >= v2 then (i1, v1) 
+                                reduce_comm (\ (i1,v1) (i2,v2) ->
+                                                if v1 >= v2 then (i1, v1)
                                                 else (i2, v2)
                                             )
                                             (-1, f32.lowest) (zip (iota32 d) diffs)
@@ -139,7 +139,7 @@ def mkKDtree [m] [d] (height: i32) (q: i64) (m' : i64)
                     |> map (radix_sort_float_by_key (\(l,_) -> l) f32.num_bits f32.get_bit)
                     |> map unzip |> unzip
 
-               let med_vals = map  (\sorted_dim -> 
+               let med_vals = map  (\sorted_dim ->
                                         let mi = pts_per_node_at_lev/2
                                         in (sorted_dim[mi] + sorted_dim[mi-1])/2
                                    ) sorted_dim_2d
@@ -147,7 +147,7 @@ def mkKDtree [m] [d] (height: i32) (q: i64) (m' : i64)
                let indir2d' = map2(\ indir_chunk sort_inds ->
                                         map (\ind -> indir_chunk[ind]) sort_inds
                                   ) indir2d sort_inds_2d
-            
+
                -- scatter the values of this level in the global result arrays
                let this_lev_inds = map (+ (nodes_this_lvl-1)) (iota nodes_this_lvl)
                let median_dims' = scatter median_dims this_lev_inds med_dims
@@ -171,7 +171,6 @@ def main [m] [d] (defppl: i32) (input: [m][d]f32) =
     -- in  (leafs, indir, median_dims, median_vals, clanc_eqdim)
     let r = i64.i32 (m' / 64)
     in  (leafs[:r], indir[:r], median_dims, median_vals, clanc_eqdim)
-    
 
 -- building a kd-tree
 -- ==

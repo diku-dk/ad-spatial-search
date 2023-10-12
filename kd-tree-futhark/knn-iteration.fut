@@ -23,7 +23,7 @@ def bruteForce [m][d] (radius: f32)
                     : f32 =
 --  loop res = 0.0f32
 --  for i < m do
---    let dist = 
+--    let dist =
 --      loop (dst) = (0.0f32)
 --      for j < d do
 --        let z = query[j] - leaf_refs[i,j]
@@ -83,7 +83,7 @@ def iterationSorted [q][n][d][num_leaves][ppl]
   let (new_leaves, new_stacks, new_dists) = unzip3 <|
     map4 (\ query leaf_ind stack dist ->
             if leaf_ind >= i32.i64 num_leaves
-            then 
+            then
                  (leaf_ind, stack, dist)
             else traverseOnce radius h kd_tree query
                               (leaf_ind, stack, dist)
@@ -99,7 +99,7 @@ def iterationSorted [q][n][d][num_leaves][ppl]
   let stacks'  = gather1D new_stacks sort_inds
   let dists'   = gather1D new_dists  sort_inds
   let query_inds' = gather1D query_inds sort_inds
-                        
+
   in  (qleaves', stacks', dists', query_inds', res + new_res)
 
 def runIterRevAD [q][n][d][num_leaves][ppl]

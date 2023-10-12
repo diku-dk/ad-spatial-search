@@ -35,7 +35,7 @@ def traverseOnce [q] [d] (radius: f32) (height: i32)
 
   -- helper functions for reading and writing the stack,
   --   which is maintained as an int
-  let getPackedInd (stk: i32) (ind: i32) : bool = 
+  let getPackedInd (stk: i32) (ind: i32) : bool =
     let b = stk & (1<<ind) in b != 0
   let setPackedInd (stk: i32) (ind: i32) (v: bool) =
     let fst = stk & ((1<<ind)-1)
@@ -43,7 +43,7 @@ def traverseOnce [q] [d] (radius: f32) (height: i32)
     let mid = if v then (1 << ind) else 0
     in  ( (fst | snd) | mid )
 
-  let getLevel (node_idx: i32) : i32 = log2 (node_idx+1) 
+  let getLevel (node_idx: i32) : i32 = log2 (node_idx+1)
   let getAncSameDimContrib (q_m_i: f32) (node_stack: i32) (node: i32) : f32 =
     (loop (idx, res) = (node, 0.0f32)
       for _i1 < height+1 do
@@ -52,7 +52,7 @@ def traverseOnce [q] [d] (radius: f32) (height: i32)
       then
         let anc = clanc_eqdim[idx] in
         if anc == (-1i32) then (-1i32, 0.0f32)
-        else 
+        else
           let anc_lev = getLevel anc
           let is_anc_visited = getPackedInd node_stack anc_lev
           in  if !is_anc_visited then (anc, res)
@@ -95,7 +95,7 @@ def traverseOnce [q] [d] (radius: f32) (height: i32)
                            else -- update the stack
                                 let fst_node = node_index
                                 let snd_node = if (fst_node % 2) == 0 then fst_node-1 else fst_node+1
-                                let stack = setPackedInd stack count true 
+                                let stack = setPackedInd stack count true
                                 -- let stack[count] = true
                                 in  (parent, stack, count, dist_plus, snd_node)
            else (node_index, stack, count, dist, rec_node)
@@ -108,7 +108,7 @@ def traverseOnce [q] [d] (radius: f32) (height: i32)
 
       else -- now traverse downwards by computing `first`
            -- and stop when you discovered a new leaf
-           loop (node_index, stack, count) = 
+           loop (node_index, stack, count) =
                 (rec_node, stack, count)
            -- while !(isLeaf height node_index) do
            for _i3 < height+1 do
