@@ -1,0 +1,6 @@
+# Ignore files without extensions.
+*
+!*.*
+!*/
+
+*.c
