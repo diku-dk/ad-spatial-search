@@ -24,8 +24,8 @@ def propagate [m1][m][q][d][n] (radius: f32)
   let num_leaves = num_nodes + 1
   let h = (log2 (i32.i64 num_leaves)) - 1
   let ppl = m / num_leaves
-  let leaves = unflatten (resize (num_leaves*ppl) ref_pts)
-  let kd_ws_sort = unflatten (resize (num_leaves*ppl) kd_weights)
+  let leaves = unflatten (sized (num_leaves*ppl) ref_pts)
+  let kd_ws_sort = unflatten (sized (num_leaves*ppl) kd_weights)
 
   let query_leaves = map (findLeaf median_dims median_vals h) queries
   let (qleaves, query_inds) = sortQueriesByLeavesRadix (h+1) query_leaves
