@@ -22,13 +22,13 @@ def bruteForce [m][d][r]
                (leaf_refs: [m][d]f32)
                (leaf_ws: [m]f32)
                : [r]f32 =
-  map (\radius ->
     map2(\ref i ->
           let dist = sumSqrsSeq query ref
-          in  if dist <= radius then query_w * leaf_ws[i] else 0.0f32
+          in  map (\radius -> if dist <= radius then query_w * leaf_ws[i] else 0.0f32) radiuses
         ) leaf_refs (iota m)
-    |> reduce (+) 0.0f32
-  ) radiuses
+    |> reduce (map2 (+)) (replicate r 0.0f32)
+    -- TODO 1. get best primal; whole thing should be seq. so just write it as a loop; also do reduce there.
+    -- TODO 2. diff by hand
 
 
 def sortQueriesByLeavesRadix [n] (num_bits: i32) (leaves: [n]i32) : ([n]i32, [n]i32) =
@@ -36,6 +36,7 @@ def sortQueriesByLeavesRadix [n] (num_bits: i32) (leaves: [n]i32) : ([n]i32, [n]
   unzip <| radix_sort_by_key (\(l,_) -> l) num_bits i32.get_bit (zip leaves (map i32.i64 (iota n)))
 
 def iterationSorted [q][n][d][num_leaves][ppl][r]
+            (max_radius: f32)
             (radiuses: [r]f32)
             (h: i32)
             (kd_tree: [q](i32,f32,i32))
@@ -68,15 +69,13 @@ def iterationSorted [q][n][d][num_leaves][ppl][r]
     --   |> reduce (map2 (+)) (replicate r 0.0f32) |> opaque
     |> transpose |> map (reduce (+) 0.0f32) |> opaque
 
-  -- Use max radius for traversal.
-  let radius = f32.maximum radiuses
   -- start at old leaf and find a new leaf, until done!
   let (new_leaves, new_stacks, new_dists) = unzip3 <|
     map4 (\ query leaf_ind stack dist ->
             if leaf_ind >= i32.i64 num_leaves
             then
                  (leaf_ind, stack, dist)
-            else traverseOnce radius h kd_tree query
+            else traverseOnce max_radius h kd_tree query
                               (leaf_ind, stack, dist)
          ) queries_sorted qleaves stacks dists
     |> opaque

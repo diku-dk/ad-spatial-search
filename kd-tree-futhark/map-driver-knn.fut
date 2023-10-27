@@ -31,10 +31,14 @@ def propagate [m1][m][q][d][n][r]
   let stacks = replicate n 0i32
   let res_ws = replicate r 0f32
 
+  -- Max radius is used in traversal decisions.
+  let max_radius = f32.maximum radiuses
+
   let (_qleaves', _stacks', _dists', _query_inds', res_ws') =
     loop (qleaves : [n]i32, stacks : [n]i32, dists : [n]f32, query_inds : [n]i32, res_ws : [r]f32)
       for _i < 8 do
-        iterationSorted radiuses h kd_tree leaves kd_ws_sort queries query_ws qleaves stacks dists query_inds res_ws
+        iterationSorted max_radius radiuses h kd_tree leaves kd_ws_sort queries
+                        query_ws qleaves stacks dists query_inds res_ws
 
   in  res_ws'
 
@@ -48,21 +52,14 @@ def rev_prop [m1][m][q][d][n][r]
              (query_ws:[n]f32, ref_ws_orig: [m1]f32)
              : ([r]f32, [r][n]f32, [r][m1]f32) =
   let f = propagate radiuses ref_pts indir kd_tree queries
-  -- we know the directions should be indep. Can we even do [1,1,1,1,1]?
-  -- in tabulate r (\i ->
-  --   let e = (replicate r 0f32) with [i] = 1f32
-  --   let (res, (query_ws_adj, ref_ws_adj)) = vjp2 f (query_ws, ref_ws_orig) e
-  --   -- TODO we only need res from one of the vjp2s (it's the same across i).
-  --   in (res[i], query_ws_adj, ref_ws_adj)
-  -- ) |> unzip3
   -- TODO We only need res from one of the vjp2s (it's the same across i).
-  -- For now, this seems faster:
+  -- For now, this seems faster than doing vjp2 inside loop:
   let (res) = f (query_ws, ref_ws_orig)
-  let (adj1, adj2) = tabulate r (\i ->
+  let (query_ws_adj, ref_ws_adj) = tabulate r (\i ->
     let e = (replicate r 0f32) with [i] = 1f32
     in vjp f (query_ws, ref_ws_orig) e
   ) |> unzip2
-  in (res, adj1, adj2)
+  in (res, query_ws_adj, ref_ws_adj)
 
 -- ==
 -- entry: primal
