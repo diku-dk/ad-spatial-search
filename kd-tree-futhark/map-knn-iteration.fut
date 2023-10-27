@@ -3,32 +3,30 @@ import "lib/github.com/diku-dk/sorts/radix_sort"
 import "kd-traverse"
 import "util"
 
-def sumSqrsSeq [d] (xs: [d]f32) (ys: [d]f32) : f32 =
-    #[sequential]
-    map2 (\x y -> let z = x - y in z*z) xs ys
-    |> reduce (+) 0.0
-
---    loop (res) = (0.0f32) for (x,y) in (zip xs ys) do
---        let z = x-y in res + z*z
-
-def seqop (p: f32, s:f32) (w: f32) : (f32, f32) = (p+s*w, s+w)
-def parop (p1: f32, s1: f32) (p2: f32, s2: f32) : (f32, f32) =
-  (p1 + s1*s2 + p2, s1 + s2)
-
 def bruteForce [m][d][r]
                (radiuses: [r]f32)
-               (query: [d]f32)
-               (query_w: f32)
-               (leaf_refs: [m][d]f32)
-               (leaf_ws: [m]f32)
+               (x: [d]f32) -- One point from sample 1.
+               (x_w: f32)
+               (ys: [m][d]f32) -- Sample 2.
+               (y_ws: [m]f32)
                : [r]f32 =
-    map2(\ref i ->
-          let dist = sumSqrsSeq query ref
-          in  map (\radius -> if dist <= radius then query_w * leaf_ws[i] else 0.0f32) radiuses
-        ) leaf_refs (iota m)
-    |> reduce (map2 (+)) (replicate r 0.0f32)
-    -- TODO 1. get best primal; whole thing should be seq. so just write it as a loop; also do reduce there.
-    -- TODO 2. diff by hand
+    -- map2(\y y_w ->
+    --       let dist = sumSqrsSeq x y
+    --       in  map (\radius -> if dist <= radius then x_w * y_w else 0.0f32) radiuses
+    --     ) ys y_ws
+    --- |> reduce (map2 (+)) (replicate r 0.0f32)
+    loop res = replicate r 0f32 for i < m do
+      let (y, y_w) = (ys[i], y_ws[i])
+      let dist =
+        loop d = 0f32 for j < d do
+          let z = x[j] - y[j]
+          in d + z*z
+      let wprod = x_w * y_w
+      in loop res' = res for k in (reverse (iota r)) do
+           if dist <= radiuses[k]
+           then res' with [k] = res'[k] + wprod
+           else res'
+    -- TODO 2. diff by hand (see also runIterRevAD below for how to proceed after)
 
 
 def sortQueriesByLeavesRadix [n] (num_bits: i32) (leaves: [n]i32) : ([n]i32, [n]i32) =
