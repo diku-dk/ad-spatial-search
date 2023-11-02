@@ -66,8 +66,8 @@ def iterationSorted [q][n][d][num_leaves][ppl]
             -- ^ one weight per querry
           : ([n]i32, [n]i32, [n]f32, [n]i32, f32) =
 
-  let queries_sorted = gather2D queries  query_inds
-  let query_ws_sorted= gather1D query_ws query_inds
+  let queries_sorted = gather queries  query_inds
+  let query_ws_sorted= gather query_ws query_inds
 
   -- apply brute force
   let new_res =
@@ -96,9 +96,9 @@ def iterationSorted [q][n][d][num_leaves][ppl]
   --let num_valid = map (\l -> if l < i32.i64 num_leaves then 1 else 0) new_leaves_all
   --                |> reduce_comm (+) 0i32 |> i64.i32
 
-  let stacks'  = gather1D new_stacks sort_inds
-  let dists'   = gather1D new_dists  sort_inds
-  let query_inds' = gather1D query_inds sort_inds
+  let stacks'  = gather new_stacks sort_inds
+  let dists'   = gather new_dists  sort_inds
+  let query_inds' = gather query_inds sort_inds
 
   in  (qleaves', stacks', dists', query_inds', res + new_res)
 

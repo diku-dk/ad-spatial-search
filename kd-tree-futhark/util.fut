@@ -20,11 +20,8 @@ def sumSqrsSeq [d] (xs: [d]f32) (ys: [d]f32) : f32 =
     loop (res) = (0.0f32) for (x,y) in (zip xs ys) do
         let z = x-y in res + z*z
 
-def gather1D 't [m] (arr1D: [m]t) (inds: [m]i32) : *[m]t =
+def gather 't [m] (arr1D: [m]t) (inds: [m]i32) : *[m]t =
     map (\ind -> arr1D[ind] ) inds
-
-def gather2D 't [m][d] (arr2D: [m][d]t) (inds: [m]i32) : *[m][d]t =
-    map (\ind -> map (\j -> arr2D[ind,j]) (iota d) ) inds
 
 def scatter2D [m][k][n] 't (arr2D: *[m][k]t) (qinds: [n]i32) (vals2D: [n][k]t) : *[m][k]t =
   let flat_qinds = map (\i -> let (d,r) = (i32.i64 i / i32.i64 k,
