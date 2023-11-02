@@ -2,6 +2,7 @@ import "lib/github.com/diku-dk/sorts/radix_sort"
 
 import "kd-traverse"
 import "util"
+import "diff_bruteforce"
 
 def bruteForce [m][d][r]
                (radiuses: [r]f32)
@@ -18,16 +19,27 @@ def bruteForce [m][d][r]
     loop res = replicate r 0f32 for i < m do
       let (y, y_w) = (ys[i], y_ws[i])
       let dist =
-        loop d = 0f32 for j < d do
+        loop s = 0f32 for j < d do
           let z = x[j] - y[j]
-          in d + z*z
+          in s + z*z
       let wprod = x_w * y_w
       in loop res' = res for k in (reverse (iota r)) do
            if dist <= radiuses[k]
            then res' with [k] = res'[k] + wprod
            else res'
-    -- TODO 2. diff by hand (see also runIterRevAD below for how to proceed after)
 
+def dbruteForce [m][d][r]
+                (radiuses: [r]f32)
+                (x: [d]f32) -- One point from sample 1.
+                (x_w: f32)
+                (ys: [m][d]f32) -- Sample 2.
+                (y_ws: [m]f32)
+                (xbar_w: f32)
+                (ybar_ws: [m]f32)
+                (res_bar: [r]f32)
+                : (f32, [m]f32) =
+  dbruteForce_opt_seq radiuses x x_w ys y_ws xbar_w ybar_ws res_bar
+  -- dbruteForce_opt_soacs radiuses x x_w ys y_ws res_bar
 
 def sortQueriesByLeavesRadix [n] (num_bits: i32) (leaves: [n]i32) : ([n]i32, [n]i32) =
   -- (leaves, map i32.i64 (iota n))
@@ -49,11 +61,10 @@ def iterationSorted [q][n][d][num_leaves][ppl][r]
             (dists:       [n]f32)
             (query_inds:  [n]i32)
             (res:  [r]f32)
-            -- ^ one weight per querry
           : ([n]i32, [n]i32, [n]f32, [n]i32, [r]f32) =
 
-  let queries_sorted = gather2D queries  query_inds
-  let query_ws_sorted= gather1D query_ws query_inds
+  let queries_sorted = gather queries  query_inds
+  let query_ws_sorted= gather query_ws query_inds
 
   -- apply brute force
   let new_res =
@@ -61,10 +72,7 @@ def iterationSorted [q][n][d][num_leaves][ppl][r]
             if leaf_ind >= i32.i64 num_leaves
             then replicate r 0.0f32
             else bruteForce radiuses query query_w (leaves[leaf_ind]) (ws[leaf_ind])
-              -- bruteForce1 radius query query_w res_w leaf_ind leaves ws
          ) queries_sorted query_ws_sorted qleaves
-    -- NOTE Big speed-up on primal for this manual rewrite:
-    --   |> reduce (map2 (+)) (replicate r 0.0f32) |> opaque
     |> transpose |> map (reduce (+) 0.0f32) |> opaque
 
   -- start at old leaf and find a new leaf, until done!
@@ -84,31 +92,93 @@ def iterationSorted [q][n][d][num_leaves][ppl][r]
   --let num_valid = map (\l -> if l < i32.i64 num_leaves then 1 else 0) new_leaves_all
   --                |> reduce_comm (+) 0i32 |> i64.i32
 
-  let stacks'  = gather1D new_stacks sort_inds
-  let dists'   = gather1D new_dists  sort_inds
-  let query_inds' = gather1D query_inds sort_inds
+  let stacks'  = gather new_stacks sort_inds
+  let dists'   = gather new_dists  sort_inds
+  let query_inds' = gather query_inds sort_inds
 
   in  (qleaves', stacks', dists', query_inds', map2 (+) res new_res)
 
--- def runIterRevAD [q][n][d][num_leaves][ppl][r]
---             (radius: [r]f32)
---             (h: i32)
---             (kd_tree: [q](i32,f32,i32))
---             (leaves:  [num_leaves][ppl][d]f32)
---             (ref_ws:  [num_leaves][ppl]f32)
---             -- ^ invariant
---             (queries: [n][d]f32)
---             (query_ws:[n]f32)
---             -- the loop state:
---             (qleaves:     [n]i32)
---             (stacks:      [n]i32)
---             (dists:       [n]f32)
---             (query_inds:  [n]i32)
---             (res:  f32)
---             -- ^ one weight per querry
---           : ([num_leaves][ppl]f32, [n]f32) =
---   let f (refe_ws , test_ws) : f32 =
---     let (_,_,_,_, res) =
---       iterationSorted radius h kd_tree leaves refe_ws queries test_ws qleaves stacks dists query_inds res
---     in  res
---   in  vjp f (ref_ws, query_ws) 1.0f32
+def diff_iterationSorted [q][n][d][num_leaves][ppl][r]
+      (max_radius: f32)
+      (radiuses: [r]f32)
+      (h: i32)
+      (kd_tree: [q](i32,f32,i32))
+      (leaves:  [num_leaves][ppl][d]f32)
+      (ws:  [num_leaves][ppl]f32)
+      -- ^ invariant
+      (queries: [n][d]f32)
+      (query_ws:[n]f32)
+      -- the loop state:
+      (qleaves:     [n]i32)
+      (stacks:      [n]i32)
+      (dists:       [n]f32)
+      (query_inds:  [n]i32)
+      (res:  [r]f32)
+      -- adjoints:
+      (query_ws_bar:  [n]f32)         -- x_ws
+      (ws_bar:  [num_leaves][ppl]f32) -- y_ws
+      (resbar:  [r]f32)
+      : ([n]i32, [n]i32, [n]f32, [n]i32, [r]f32, [n]f32) =
+  -- Run primal for control-flow variables.
+  let (qleaves', stacks', dists', query_inds', res_ws') =
+    iterationSorted max_radius radiuses h kd_tree leaves ws queries
+                    query_ws qleaves stacks dists query_inds res
+  -- TODO copy paste above primal
+
+  -- The part of the primal that actually depends on weights is `new_res`.
+  let queries_sorted = gather queries  query_inds
+  let query_ws_sorted= gather query_ws query_inds
+
+  -- apply brute force
+  let new_res0 =
+    map3 (\ query query_w leaf_ind ->
+            if leaf_ind >= i32.i64 num_leaves
+            then replicate r 0.0f32
+            else bruteForce radiuses query query_w (leaves[leaf_ind]) (ws[leaf_ind])
+         ) queries_sorted query_ws_sorted qleaves
+  let new_res1 = transpose new_res0
+  -- let new_res = map (reduce (+) 0.0f32) new_res1 -- Last step unneeded.
+
+  -- TODO Differentiate w.r.t. ws and query_ws.
+  -- The map for new_res has free variables (in particular, ws is a free variable).
+  -- This requires special handling (replication or withAcc) see pp 7 in paper.
+  -- NOTE For now: differentiate w.r.t. query_ws only.
+  -- which is not a free variable, so I will attempt to just ignore free variables
+  -- here.
+
+  -- TODO diff gathers
+
+  -- let new_res_bar = resbar
+  -- let new_res1_bar = replicate n 0f32
+  -- let new_res1_bar = map3 (\as asbar rbar ->
+  --   let r = reduce (+) 0.0f32 as
+  --   let asbar' = replicate n rbar |> map (+) asbar
+  --   in asbar + asbar'
+  -- ) new_res1 new_res1_bar new_res_bar
+  --
+  -- Simplifying zeros:
+  let new_res_bar = resbar
+  let new_res1_bar = map2 (\_as rbar ->
+    -- let r = reduce (+) 0.0f32 as
+    let asbar' = replicate n rbar -- TODO is n the right size here?
+    in asbar'
+  ) new_res1 new_res_bar
+
+  let new_res0_bar = transpose new_res1_bar
+  let new_res0_bar = map5 (\query query_w leaf_ind query_w_bar resbar0 ->
+    -- Primal unneeded.
+    -- let res =
+    --   if leaf_ind >= i32.i64 num_leaves
+    --   then replicate r 0.0f32
+    --   else bruteForce radiuses query query_w (leaves[leaf_ind]) (ws[leaf_ind])
+    -- Rev.
+    let resbar = resbar0
+    let query_w_bar =
+      if leaf_ind >= i32.i64 num_leaves
+      then query_w_bar + 0f32
+      else
+        (dbruteForce radiuses query query_w leaves[leaf_ind] ws[leaf_ind] query_w_bar ws_bar[leaf_ind] resbar).0
+    in query_w_bar
+  ) queries_sorted query_ws_sorted qleaves query_ws_bar new_res0_bar
+
+  in (qleaves', stacks', dists', query_inds', res_ws', new_res0_bar)
