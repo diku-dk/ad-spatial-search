@@ -98,7 +98,9 @@ def iterationSorted [q][n][d][num_leaves][ppl][r]
 
   in  (qleaves', stacks', dists', query_inds', map2 (+) res new_res)
 
-def diff_iterationSorted [q][n][d][num_leaves][ppl][r]
+import "diff_iteration"
+
+def diterationSorted [q][n][d][num_leaves][ppl][r]
       (max_radius: f32)
       (radiuses: [r]f32)
       (h: i32)
@@ -116,69 +118,16 @@ def diff_iterationSorted [q][n][d][num_leaves][ppl][r]
       (res:  [r]f32)
       -- adjoints:
       (query_ws_bar:  [n]f32)         -- x_ws
-      (ws_bar:  [num_leaves][ppl]f32) -- y_ws
+      -- (ws_bar:  [num_leaves][ppl]f32) -- y_ws
       (resbar:  [r]f32)
-      : ([n]i32, [n]i32, [n]f32, [n]i32, [r]f32, [n]f32) =
+      : ([n]i32, [n]i32, [n]f32, [n]i32, [r]f32, [n]f32, [r]f32) =
   -- Run primal for control-flow variables.
-  let (qleaves', stacks', dists', query_inds', res_ws') =
+  let (qleaves', stacks', dists', query_inds', new_res) =
     iterationSorted max_radius radiuses h kd_tree leaves ws queries
                     query_ws qleaves stacks dists query_inds res
   -- TODO copy paste above primal
+  let (new_res_bar, query_ws_bar) =
+    (resbar, -- NOTE resbar does not change.
+     df radiuses queries query_ws leaves ws qleaves query_inds query_ws_bar resbar)
 
-  -- The part of the primal that actually depends on weights is `new_res`.
-  let queries_sorted = gather queries  query_inds
-  let query_ws_sorted= gather query_ws query_inds
-
-  -- apply brute force
-  let new_res0 =
-    map3 (\ query query_w leaf_ind ->
-            if leaf_ind >= i32.i64 num_leaves
-            then replicate r 0.0f32
-            else bruteForce radiuses query query_w (leaves[leaf_ind]) (ws[leaf_ind])
-         ) queries_sorted query_ws_sorted qleaves
-  let new_res1 = transpose new_res0
-  -- let new_res = map (reduce (+) 0.0f32) new_res1 -- Last step unneeded.
-
-  -- TODO Differentiate w.r.t. ws and query_ws.
-  -- The map for new_res has free variables (in particular, ws is a free variable).
-  -- This requires special handling (replication or withAcc) see pp 7 in paper.
-  -- NOTE For now: differentiate w.r.t. query_ws only.
-  -- which is not a free variable, so I will attempt to just ignore free variables
-  -- here.
-
-  -- TODO diff gathers
-
-  -- let new_res_bar = resbar
-  -- let new_res1_bar = replicate n 0f32
-  -- let new_res1_bar = map3 (\as asbar rbar ->
-  --   let r = reduce (+) 0.0f32 as
-  --   let asbar' = replicate n rbar |> map (+) asbar
-  --   in asbar + asbar'
-  -- ) new_res1 new_res1_bar new_res_bar
-  --
-  -- Simplifying zeros:
-  let new_res_bar = resbar
-  let new_res1_bar = map2 (\_as rbar ->
-    -- let r = reduce (+) 0.0f32 as
-    let asbar' = replicate n rbar -- TODO is n the right size here?
-    in asbar'
-  ) new_res1 new_res_bar
-
-  let new_res0_bar = transpose new_res1_bar
-  let new_res0_bar = map5 (\query query_w leaf_ind query_w_bar resbar0 ->
-    -- Primal unneeded.
-    -- let res =
-    --   if leaf_ind >= i32.i64 num_leaves
-    --   then replicate r 0.0f32
-    --   else bruteForce radiuses query query_w (leaves[leaf_ind]) (ws[leaf_ind])
-    -- Rev.
-    let resbar = resbar0
-    let query_w_bar =
-      if leaf_ind >= i32.i64 num_leaves
-      then query_w_bar + 0f32
-      else
-        (dbruteForce radiuses query query_w leaves[leaf_ind] ws[leaf_ind] query_w_bar ws_bar[leaf_ind] resbar).0
-    in query_w_bar
-  ) queries_sorted query_ws_sorted qleaves query_ws_bar new_res0_bar
-
-  in (qleaves', stacks', dists', query_inds', res_ws', new_res0_bar)
+  in (qleaves', stacks', dists', query_inds', new_res, query_ws_bar, new_res_bar)

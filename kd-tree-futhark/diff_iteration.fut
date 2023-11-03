@@ -55,7 +55,7 @@ def df [n][d][num_leaves][ppl][r]
        (query_inds: [n]i32)
        -- adjoints:
        -- (xsbar: [n][d]f32)
-       -- (x_ws_bar: [n]f32)
+       (x_ws_bar: [n]f32)
        -- (ysbar: [num_leaves][ppl]f32)
        -- (y_ws_bar: [num_leaves][ppl]f32)
        (resbar: [r]f32) =
@@ -97,7 +97,7 @@ def df [n][d][num_leaves][ppl][r]
     in x_w_bar
   ) (zip4 xs_sorted x_ws_sorted ys_sorted y_ws_sorted) leaf_inds new_res0_bar
 
-  let x_ws_bar = dgather_f32 (replicate n 0f32) query_inds x_ws_sorted_bar
+  let x_ws_bar = dgather_f32 x_ws_bar query_inds x_ws_sorted_bar
   -- Or using a loop:
   -- let x_ws_bar =
   --   loop x_ws_bar = replicate n 0f32 for k < n do
@@ -137,6 +137,6 @@ def main [q][n][d][num_leaves][ppl][r]
   let g x_ws = f radiuses queries x_ws leaves ws qleaves query_inds
   let expected = vjp g query_ws out_adj
   let got =
-    df radiuses queries query_ws leaves ws qleaves query_inds out_adj
+    df radiuses queries query_ws leaves ws qleaves query_inds (replicate n 0f32) out_adj
   let diffs = filter (\(_, x, y) -> x != y) (zip3 (indices expected) expected got)
   in map (\(i, x, y) -> [f32.i64 i, x, y]) diffs

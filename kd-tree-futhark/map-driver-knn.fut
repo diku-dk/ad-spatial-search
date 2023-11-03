@@ -135,48 +135,44 @@ def diff_propagate [m1][m][q][d][n][r]
   -- Max radius is used in traversal decisions.
   let max_radius = f32.maximum radiuses
 
-  -- TODO diff this loop.
-  -- TODO Validate the results for a single vector resbar against vjp.
-  --      That is, result type is [n].
-  -- TODO figure out how to get [r][n] and not [n] in one go!
-  -- Will require moving resbar all the way in, I think.
-  -- There's probably a point at which I'm looping over each element,
-  -- without reducing after, and then each element might as well be 1.
-
-  let qleavess = replicate 8 qleaves
-  let stackss = replicate 8 stacks
-  let distss = replicate 8 dists
-  let query_indss = replicate 8 query_inds
-  let res_wss = replicate 8 res_ws
-
-  -- let (_qleaves', _stacks', _dists', _query_inds', res_ws',
-  --      _qleavess, _stackss, _distss, _query_indss, res_wss) =
-  --   loop (qleaves : [n]i32, stacks : [n]i32, dists : [n]f32, query_inds : [n]i32, res_ws : [r]f32,
-  --         qleavess, stackss, distss, query_indss, res_wss)
-  --     for _i < 8 do
-  --       iterationSorted max_radius radiuses h kd_tree leaves kd_ws_sort queries
-  --                       query_ws qleaves stacks dists query_inds res_ws
-
-  -- let query_ws_adj = replicate r (replicate n 0f32)
   let query_ws_bar = replicate n 0f32
-  let ws_bar = replicate num_leaves (replicate ppl 0f32)
-  let (_qleaves', _stacks', _dists', _query_inds', _res_ws', query_ws_bar') =
-    loop (qleaves: [n]i32, stacks: [n]i32, dists: [n]f32, query_inds: [n]i32, res_ws: [r]f32, query_ws_bar)
+  let (_qleaves', _stacks', _dists', _query_inds', _res_ws', query_ws_bar', _resbar) =
+    loop (qleaves: [n]i32, stacks: [n]i32, dists: [n]f32, query_inds: [n]i32, res_ws: [r]f32, query_ws_bar, resbar)
       for _i < 8 do
-        let (x0, x1, x2, x3, x4, x5) =
-          diff_iterationSorted max_radius radiuses h kd_tree leaves kd_ws_sort queries
-                               query_ws qleaves stacks dists query_inds res_ws
-                               query_ws_bar ws_bar resbar
-        in (x0, x1, x2, x3, x4, x5)
+        diterationSorted max_radius radiuses h kd_tree leaves kd_ws_sort queries
+                         query_ws qleaves stacks dists query_inds res_ws
+                         query_ws_bar resbar
 
   in query_ws_bar'
 
 -- ==
--- entry: derivative_by_hand
+-- entry: revad_by_hand
+
 --
 -- compiled input @ data/kdtree-prop-refs-512K-queries-1M.in
 -- output { true }
-entry derivative_by_hand [d][n][m][m'][q]
+entry revad_by_hand [d][n][m][m'][q]
+        (sq_radius: f32)
+        (queries:  [n][d]f32)
+        (query_ws: [n]f32)
+        (ref_ws:   [m]f32)
+        (refs_pts : [m'][d]f32)
+        (indir:     [m']i32)
+        (median_dims : [q]i32)
+        (median_vals : [q]f32)
+        (clanc_eqdim : [q]i32) : [n]f32 =
+    -- SINGLE DIRECTION:
+    let DIR = (replicate 5 0f32) with [0] = 1f32
+    let rs = expand_radius 5 sq_radius
+    let tree = (zip3 median_dims median_vals clanc_eqdim)
+    in diff_propagate rs refs_pts indir tree queries (query_ws, ref_ws) DIR
+
+-- ==
+-- entry: revad_by_hand_test
+--
+-- compiled input @ data/kdtree-prop-refs-512K-queries-1M.in
+-- output { true }
+entry revad_by_hand_test [d][n][m][m'][q]
         (sq_radius: f32)
         (queries:  [n][d]f32)
         (query_ws: [n]f32)
