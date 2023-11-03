@@ -164,8 +164,8 @@ def dbruteForce_opt_seq [m][d][r]
       let wprodbar = dupdate_opt radiuses dist out_adj
       let xbar_w = xbar_w + y_w * wprodbar
       -- ybar0_ws[i] is zero, so no need to read this value.
-      -- let ybar_ws = ybar_ws' with [i] = ybar_ws'[i] + x_w * wprodbar
-      let ybar_ws = ybar_ws with [i] = x_w * wprodbar
+      let ybar_ws = ybar_ws with [i] = ybar_ws[i] + x_w * wprodbar
+      -- let ybar_ws = ybar_ws with [i] = x_w * wprodbar
       in (xbar_w, ybar_ws)
   in fvsbar
 
