@@ -102,6 +102,8 @@ def dbruteForce [m][d][r]
                 (x_w: f32)
                 (ys: [m][d]f32) -- Sample 2.
                 (y_ws: [m]f32)
+                (xbar_w: f32)
+                (ybar_ws: [m]f32)
                 (out_adj: [r]f32)
                 : (f32, [m]f32) =
   -- let f (x_w, y_ws) = bruteForce radiuses x x_w ys y_ws
@@ -118,10 +120,8 @@ def dbruteForce [m][d][r]
 
   let fbar0 = out_adj
   -- Free variables are x and y.
-  let xbar0_w = 0f32
-  let ybar0_ws = replicate m 0f32
   let (_fbar, fvsbar) =
-    loop (fbar, (xbar_w', ybar_ws')) = (fbar0, (xbar0_w, ybar0_ws))
+    loop (fbar, (xbar_w', ybar_ws')) = (fbar0, (xbar_w, copy ybar_ws))
     for i in reverse (iota m) do
       -- restore
       let res = fs[i]
@@ -181,15 +181,15 @@ def dbruteForce_opt_soacs [m][d][r]
                           : (f32, [m]f32) =
   -- Primal with checkpointing unneeded.
   -- Differentiate w.r.t. free variables x_w and y_ws.
-  let (xbar_w, ybar_ws) = unzip <| map3 (\y y_w ybar_w ->
+  let (xbar_w', ybar_ws) = unzip <| map3 (\y y_w ybar_w ->
     let dist = dist_sq x y
     -- Rev.
     let wprodbar = dupdate_opt radiuses dist out_adj
-    let xbar_w = xbar_w + y_w * wprodbar
+    let xbar_w = y_w * wprodbar
     let ybar_w = ybar_w + x_w * wprodbar
     in (xbar_w, ybar_w)
   ) ys y_ws ybar_ws
-  in (reduce (+) 0 xbar_w, ybar_ws)
+  in (xbar_w + reduce (+) 0 xbar_w', ybar_ws)
 
 -- ==
 -- compiled input @ data/5radiuses-brute-force-input-refs-512K-queries-1M.out
@@ -200,7 +200,7 @@ def main [m][d][n][r]
          (x_ws: [n]f32)
          (ys: [m][d]f32) -- Sample 2.
          (y_ws: [m]f32) =
-  -- let n = 10
+  let n = 1000
   let m = 10000
   let xs = xs[:n]
   let x_ws = x_ws[:n]
@@ -210,16 +210,12 @@ def main [m][d][n][r]
   in map (\i ->
     let (x, x_w) = (xs[i], x_ws[i])
     let f (x_w, y_ws) = bruteForce radiuses x x_w ys y_ws
-    let out_adj = (replicate r 1f32) with [0] = 1f32
+    let out_adj = replicate r 1f32
     let xbar_w0 = 0f32
     let ybar_ws0 = replicate m 0f32
     let expected = vjp f (x_w, y_ws) out_adj
-    let got = dbruteForce_opt_seq radiuses x x_w ys y_ws xbar_w0 ybar_ws0 out_adj
+    let got = dbruteForce_opt_soacs radiuses x x_w ys y_ws xbar_w0 ybar_ws0 out_adj
     in expected == got
-    -- -- Only needed for dbruteForce_opt_soacs due to numerics on e1 and e2:
-    -- let (e1, e2) = vjp f (x_w, y_ws) out_adj
-    -- let (g1, g2) = dbruteForce_opt_soacs radiuses x x_w ys y_ws xbar_w0 ybar_ws0 out_adj
-    -- in (f32.abs (e1 - g1) <= 2*f32.epsilon) && (map2 (==) e2 g2 |> reduce (&&) true)
  ) (iota n) |> reduce (&&) true
 
 -- ==
