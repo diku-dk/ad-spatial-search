@@ -167,6 +167,7 @@ def df_ALL [n][d][num_leaves][ppl][r]
   in x_ws_bars
 
 -- ==
+-- entry: main main_ALL
 -- compiled input @ data/5radiuses-iterationSorted-refs-512K-queries-1M.in
 -- output { empty([0][3]f32) }
 def main [q][n][d][num_leaves][ppl][r]
@@ -203,9 +204,6 @@ def main [q][n][d][num_leaves][ppl][r]
   let diffs = filter (\(_, x, y) -> x != y) (zip3 (indices expected) expected got)
   in map (\(i, x, y) -> [f32.i64 i, x, y]) diffs
 
--- ==
--- compiled input @ data/5radiuses-iterationSorted-refs-512K-queries-1M.in
--- output { empty([0][3]f32) }
 entry main_ALL [q][n][d][num_leaves][ppl][r]
          (_max_radius: f32)
          (radiuses: [r]f32)
@@ -223,21 +221,13 @@ entry main_ALL [q][n][d][num_leaves][ppl][r]
          (_dists:       [n]f32)
          (query_inds:  [n]i32)
          (_res:  [r]f32) =
-  -- Debugging:
-  -- let n = 100000 -- 2048 is num_leaves
-  -- let queries = queries[:n]
-  -- let query_ws = query_ws[:n]
-  -- let qleaves = qleaves[:n]
-  -- let query_inds = query_inds[:n]
-  -- let query_inds = map (\i -> if i < i32.i64 n then i else 0) query_inds
-
-  -- Testing:
   let out_adjs = tabulate r (\i -> (replicate r 0f32) with [i] = 1f32)
   let g x_ws = f radiuses queries x_ws leaves ws qleaves query_inds
   let expected = map (vjp g query_ws) out_adjs
   let got =
     df_ALL radiuses queries query_ws leaves ws qleaves query_inds
            (replicate r (replicate n 0f32)) (transpose out_adjs)
-  in expected == got
-  -- let diffs = filter (\(_, x, y) -> x != y) (zip3 (indices expected) expected got)
-  -- in map (\(i, x, y) -> [f32.i64 i, x, y]) diffs
+  let expected = flatten expected
+  let got = flatten got
+  let diffs = filter (\(_, x, y) -> x != y) (zip3 (indices expected) expected got)
+  in map (\(i, x, y) -> [f32.i64 i, x, y]) diffs
