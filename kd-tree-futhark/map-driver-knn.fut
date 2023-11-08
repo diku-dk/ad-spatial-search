@@ -1,5 +1,5 @@
 -- ==
--- entry: primal revad revad_by_hand_SINGLE revad_by_hand_ALL
+-- entry: revad_by_hand_ALL primal revad revad_by_hand_SINGLE
 --
 -- compiled input @ data/kdtree-prop-refs-512K-queries-1M.in
 
@@ -79,6 +79,8 @@ def diff_propagate [m1][m][q][d][n][r]
                          query_ws_bar resbar
   in query_ws_bar'
 
+-- TODO Performance bug: this is SLOWER if we remove loop. Also it's
+-- orders of magnitude slower than just 'df' despite doing much the same work.
 def diff_propagate_ALL [m1][m][q][d][n][r]
                        (radiuses: [r]f32)
                        (ref_pts: [m][d]f32)
@@ -89,15 +91,15 @@ def diff_propagate_ALL [m1][m][q][d][n][r]
                        (resbars: [r][r]f32)
                        : [r][n]f32 =
   let (h, leaves, kd_ws_sort, qleaves, query_inds, dists, stacks,
-       res_ws, max_radius) =
+       _res_ws, max_radius) =
     setup radiuses ref_pts indir kd_tree queries ref_ws_orig
   let query_ws_bar = replicate r (replicate n 0f32)
-  let (_qleaves', _stacks', _dists', _query_inds', _res_ws', query_ws_bar', _resbar) =
-    loop (qleaves: [n]i32, stacks: [n]i32, dists: [n]f32, query_inds: [n]i32, res_ws: [r]f32, query_ws_bar, resbars)
+  let (_qleaves', _stacks', _dists', _query_inds', query_ws_bar', _resbar) =
+    loop (qleaves: [n]i32, stacks: [n]i32, dists: [n]f32, query_inds: [n]i32, query_ws_bar, resbars)
       for _i < 8 do
-        diterationSorted_ALL
+        diterationSorted_ALL_inlined
           max_radius radiuses h kd_tree leaves kd_ws_sort queries
-          query_ws qleaves stacks dists query_inds res_ws
+          query_ws qleaves stacks dists query_inds
           query_ws_bar resbars
   in query_ws_bar'
 
