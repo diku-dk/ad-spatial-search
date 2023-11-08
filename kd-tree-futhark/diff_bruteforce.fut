@@ -177,14 +177,14 @@ def dbruteForce_opt_seq_ALL [m][d][r]
                             (x_w: f32)
                             (ys: [m][d]f32) -- Sample 2.
                             (y_ws: [m]f32)
-                            (xbar_w: f32)
-                            (ybar_ws: [m]f32)
+                            (xbar_ws: [r]f32)
+                            (ybar_wss: [r][m]f32)
                             (out_adjs: [r][r]f32)
                             : ([r]f32, [r][m]f32) =
   -- Primal with checkpointing unneeded.
   -- Differentiate w.r.t. free variables x_w and y_ws.
   let fvsbar =
-    loop (xbar_ws, ybar_wss) = (replicate r xbar_w, replicate r ybar_ws)
+    loop (xbar_ws, ybar_wss) = (xbar_ws, ybar_wss)
     for i in reverse (iota m) do
       -- Restore unneeded.
       -- Fwd.
@@ -253,9 +253,10 @@ def main [m][d][n][r]
  ) (iota n) |> reduce (\(x,x') (y,y') -> (x && x', y && y')) (true, true)
 
 -- ==
+-- entry: main_ALL
 -- compiled input @ data/5radiuses-brute-force-input-refs-512K-queries-1M.out
 -- output { true true }
-def main_ALL [m][d][n][r]
+entry main_ALL [m][d][n][r]
          (radiuses: [r]f32)
          (xs: [n][d]f32) -- One point from sample 1.
          (x_ws: [n]f32)
@@ -272,8 +273,8 @@ def main_ALL [m][d][n][r]
     let (x, x_w) = (xs[i], x_ws[i])
     let f (x_w, y_ws) = bruteForce radiuses x x_w ys y_ws
     let out_adjs = tabulate r (\i -> (replicate r 0f32) with [i] = 1f32)
-    let xbar_w0 = 0f32
-    let ybar_ws0 = replicate m 0f32
+    let xbar_w0 = replicate r 0f32
+    let ybar_ws0 = replicate r (replicate m 0f32)
     let (expected_x, expected_y) = unzip <| map (vjp f (x_w, y_ws)) out_adjs
     let (got_x, got_y) = dbruteForce_opt_seq_ALL radiuses x x_w ys y_ws xbar_w0 ybar_ws0 out_adjs
     -- let diffs = filter (uncurry (!=)) (zip expected_x got_x)

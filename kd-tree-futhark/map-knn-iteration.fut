@@ -125,9 +125,43 @@ def diterationSorted [q][n][d][num_leaves][ppl][r]
   let (qleaves', stacks', dists', query_inds', new_res) =
     iterationSorted max_radius radiuses h kd_tree leaves ws queries
                     query_ws qleaves stacks dists query_inds res
-  -- TODO copy paste above primal
+  -- TODO Eliminate duplicate work by inlining primal here (that is,
+  -- inline both above call and df).
   let (new_res_bar, query_ws_bar) =
     (resbar, -- NOTE resbar does not change.
      df radiuses queries query_ws leaves ws qleaves query_inds query_ws_bar resbar)
+
+  in (qleaves', stacks', dists', query_inds', new_res, query_ws_bar, new_res_bar)
+
+def diterationSorted_ALL [q][n][d][num_leaves][ppl][r]
+      (max_radius: f32)
+      (radiuses: [r]f32)
+      (h: i32)
+      (kd_tree: [q](i32,f32,i32))
+      (leaves:  [num_leaves][ppl][d]f32)
+      (ws:  [num_leaves][ppl]f32)
+      -- ^ invariant
+      (queries: [n][d]f32)
+      (query_ws:[n]f32)
+      -- the loop state:
+      (qleaves:     [n]i32)
+      (stacks:      [n]i32)
+      (dists:       [n]f32)
+      (query_inds:  [n]i32)
+      (res:  [r]f32)
+      -- adjoints:
+      (query_ws_bar: [r][n]f32)         -- x_ws
+      -- (ws_bar:  [num_leaves][ppl]f32) -- y_ws
+      (resbar:  [r][r]f32)
+      : ([n]i32, [n]i32, [n]f32, [n]i32, [r]f32, [r][n]f32, [r][r]f32) =
+  -- Run primal for control-flow variables.
+  let (qleaves', stacks', dists', query_inds', new_res) =
+    iterationSorted max_radius radiuses h kd_tree leaves ws queries
+                    query_ws qleaves stacks dists query_inds res
+  -- TODO Eliminate duplicate work by inlining primal here (that is,
+  -- inline both above call and df).
+  let (new_res_bar, query_ws_bar) =
+    (resbar, -- NOTE resbar does not change.
+     df_ALL radiuses queries query_ws leaves ws qleaves query_inds query_ws_bar resbar)
 
   in (qleaves', stacks', dists', query_inds', new_res, query_ws_bar, new_res_bar)

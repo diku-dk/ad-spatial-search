@@ -10,15 +10,17 @@ entry bruteForce_input [m][d][n] (sqrad: f32) (_defppl: i32) (refs: [m][d]f32) (
 entry brute_primal [m][d][n] (sqrad: f32) (_defppl: i32) (refs: [m][d]f32) (ref_ws: [m]f32) (queries: [n][d]f32) (query_ws: [n]f32) =
     map (\r -> bruteForce r refs ref_ws queries query_ws) (expand_radius 5 sqrad)
 
-entry brute_revad [m][d][n] (sqrad: f32) (_defppl: i32) (refs: [m][d]f32) (ref_ws: [m]f32) (queries: [n][d]f32) (query_ws: [n]f32) : ([5]f32, [5][n]f32, [5][m]f32) =
-  map (\r ->
-    let f (train_ws, test_ws) = bruteForce r refs train_ws queries test_ws
-    let (res, (ref_ws_adj, query_ws_adj)) = vjp2 f (ref_ws, query_ws) 1.0f32
-    in  (res, query_ws_adj, ref_ws_adj)
-  ) (expand_radius 5 sqrad) |> unzip3
+entry brute_revad [m][d][n] (sqrad: f32) (_defppl: i32) (refs: [m][d]f32) (ref_ws: [m]f32) (queries: [n][d]f32) (query_ws: [n]f32) : ([5][n]f32, [5][m]f32) =
+  let (_res, query_ws', ref_ws') =
+    map (\r ->
+      let f (train_ws, test_ws) = bruteForce r refs train_ws queries test_ws
+      let (res, (ref_ws_adj, query_ws_adj)) = vjp2 f (ref_ws, query_ws) 1.0f32
+      in  (res, query_ws_adj, ref_ws_adj)
+    ) (expand_radius 5 sqrad) |> unzip3
+  in (query_ws', ref_ws')
 
 import "kd-traverse"
-import "map-knn-iteration" -- This redefines bruteForce from the above.
+import "map-knn-iteration" -- NOTE This redefines bruteForce from the above.
 
 entry iterationSorted_input [d][n][m][m'][q]
         (sq_radius: f32)
