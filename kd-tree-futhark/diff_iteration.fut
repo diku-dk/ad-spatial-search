@@ -63,15 +63,15 @@ def df [n][d][num_leaves][ppl][r]
   let x_ws_sorted = gather_no_fvs x_ws query_inds
   let ys_sorted   = gather_no_fvs_safe ys leaf_inds
   let y_ws_sorted = gather_no_fvs_safe y_ws leaf_inds
-  let new_res0 =
-    map5 (\ query query_w y y_w leaf_ind ->
-            if leaf_ind >= i32.i64 num_leaves
-            then replicate r 0.0f32
-            else
-              bruteForce radiuses query query_w y y_w
-         ) xs_sorted x_ws_sorted ys_sorted y_ws_sorted leaf_inds
+  -- let new_res0 =
+  --   map5 (\ query query_w y y_w leaf_ind ->
+  --           if leaf_ind >= i32.i64 num_leaves
+  --           then replicate r 0.0f32
+  --           else
+  --             bruteForce radiuses query query_w y y_w
+  --        ) xs_sorted x_ws_sorted ys_sorted y_ws_sorted leaf_inds
 
-  let new_res1 = transpose new_res0
+  -- let new_res1 = transpose new_res0
   -- let new_res = map (reduce (+) 0) new_res1 -- Last step unneeded.
 
   let new_res_bar = resbar
@@ -123,15 +123,15 @@ def df_ALL [n][d][num_leaves][ppl][r]
   let x_ws_sorted = gather_no_fvs x_ws query_inds
   let ys_sorted   = gather_no_fvs_safe ys leaf_inds
   let y_ws_sorted = gather_no_fvs_safe y_ws leaf_inds
-  let new_res0 =
-    map5 (\ query query_w y y_w leaf_ind ->
-            if leaf_ind >= i32.i64 num_leaves
-            then replicate r 0.0f32
-            else
-              bruteForce radiuses query query_w y y_w
-         ) xs_sorted x_ws_sorted ys_sorted y_ws_sorted leaf_inds
+  -- let new_res0 =
+  --   map5 (\ query query_w y y_w leaf_ind ->
+  --           if leaf_ind >= i32.i64 num_leaves
+  --           then replicate r 0.0f32
+  --           else
+  --             bruteForce radiuses query query_w y y_w
+  --        ) xs_sorted x_ws_sorted ys_sorted y_ws_sorted leaf_inds
 
-  let new_res1 = transpose new_res0
+  -- let _new_res1 = transpose new_res0
   -- let new_res = map (reduce (+) 0) new_res1 -- Last step unneeded.
 
   let new_res_bars = resbarsT
@@ -168,6 +168,7 @@ def df_ALL [n][d][num_leaves][ppl][r]
 
 -- ==
 -- entry: main main_ALL
+
 -- compiled input @ data/5radiuses-iterationSorted-refs-512K-queries-1M.in
 -- output { empty([0][3]f32) }
 def main [q][n][d][num_leaves][ppl][r]
@@ -226,8 +227,55 @@ entry main_ALL [q][n][d][num_leaves][ppl][r]
   let expected = map (vjp g query_ws) out_adjs
   let got =
     df_ALL radiuses queries query_ws leaves ws qleaves query_inds
-           (replicate r (replicate n 0f32)) (transpose out_adjs)
+           (replicate r (replicate n 0f32)) out_adjs
+                                            --^ out_adjs.T = out_adjs
   let expected = flatten expected
   let got = flatten got
   let diffs = filter (\(_, x, y) -> x != y) (zip3 (indices expected) expected got)
   in map (\(i, x, y) -> [f32.i64 i, x, y]) diffs
+
+-- ==
+-- entry: bench_manual bench_ad
+-- compiled input @ data/5radiuses-iterationSorted-refs-512K-queries-1M.in
+entry bench_manual [q][n][d][num_leaves][ppl][r]
+         (_max_radius: f32)
+         (radiuses: [r]f32)
+         (_h: i32)
+         (_median_dims : [q]i32)
+         (_median_vals : [q]f32)
+         (_clanc_eqdim : [q]i32)
+         (leaves:  [num_leaves][ppl][d]f32)
+         (ws:      [num_leaves][ppl]f32)
+         (queries: [n][d]f32)
+         (query_ws:[n]f32)
+         -- the loop state:
+         (qleaves:     [n]i32)
+         (_stacks:      [n]i32)
+         (_dists:       [n]f32)
+         (query_inds:  [n]i32)
+         (_res:  [r]f32) =
+  let out_adjs = tabulate r (\i -> (replicate r 0f32) with [i] = 1f32)
+  in df_ALL radiuses queries query_ws leaves ws qleaves query_inds
+            (replicate r (replicate n 0f32)) out_adjs
+                                             --^ out_adjs.T = out_adjs
+
+entry bench_ad [q][n][d][num_leaves][ppl][r]
+         (_max_radius: f32)
+         (radiuses: [r]f32)
+         (_h: i32)
+         (_median_dims : [q]i32)
+         (_median_vals : [q]f32)
+         (_clanc_eqdim : [q]i32)
+         (leaves:  [num_leaves][ppl][d]f32)
+         (ws:      [num_leaves][ppl]f32)
+         (queries: [n][d]f32)
+         (query_ws:[n]f32)
+         -- the loop state:
+         (qleaves:     [n]i32)
+         (_stacks:      [n]i32)
+         (_dists:       [n]f32)
+         (query_inds:  [n]i32)
+         (_res:  [r]f32) =
+  let out_adjs = tabulate r (\i -> (replicate r 0f32) with [i] = 1f32)
+  let g x_ws = f radiuses queries x_ws leaves ws qleaves query_inds
+  in map (vjp g query_ws) out_adjs
