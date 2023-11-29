@@ -96,7 +96,6 @@ def bruteForce [m][d][r]
       --      if dist <= radiuses[k]
       --      then res' with [k] = res'[k] + wprod
       --      else res'
-    -- TODO 2. diff by hand (see also runIterRevAD below for how to proceed after)
 
 def dbruteForce [m][d][r]
                 (radiuses: [r]f32)

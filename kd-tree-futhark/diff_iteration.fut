@@ -11,7 +11,6 @@ def dgather_f32 [m][n] (xsbar: [n]f32) (is: [m]i32) (resbar: [m]f32) : *[n]f32 =
 def gather_no_fvs_safe 't [m][n] (xs: [m]t) (is: [n]i32) : *[n]t =
   map2 (\i xs' -> if i < i32.i64 m then xs'[i] else xs[0]) is (replicate n xs)
 
--- TODO add reduce over xs
 -- Computation from iterationSorted.
 def f [r][n][d][num_leaves][ppl]
       (radiuses: [r]f32)
@@ -59,10 +58,12 @@ def df [n][d][num_leaves][ppl][r]
        -- (ysbar: [num_leaves][ppl]f32)
        -- (y_ws_bar: [num_leaves][ppl]f32)
        (resbar: [r]f32) =
+  -- Primal.
   let xs_sorted   = gather_no_fvs xs query_inds -- NOTE no fvs.
   let x_ws_sorted = gather_no_fvs x_ws query_inds
   let ys_sorted   = gather_no_fvs_safe ys leaf_inds
   let y_ws_sorted = gather_no_fvs_safe y_ws leaf_inds
+  -- The rest of the primal is unneeded.
   -- let new_res0 =
   --   map5 (\ query query_w y y_w leaf_ind ->
   --           if leaf_ind >= i32.i64 num_leaves
@@ -70,10 +71,10 @@ def df [n][d][num_leaves][ppl][r]
   --           else
   --             bruteForce radiuses query query_w y y_w
   --        ) xs_sorted x_ws_sorted ys_sorted y_ws_sorted leaf_inds
-
   -- let new_res1 = transpose new_res0
-  -- let new_res = map (reduce (+) 0) new_res1 -- Last step unneeded.
+  -- let new_res = map (reduce (+) 0) new_res1
 
+  -- Rev.
   let new_res_bar = resbar
   -- let new_res1_bar =
   --   map3 (\r1 r1bar rbar ->
@@ -119,10 +120,12 @@ def df_ALL [n][d][num_leaves][ppl][r]
        -- (y_ws_bar: [num_leaves][ppl]f32)
        (resbarsT: [r][r]f32) -- NOTE transposed, but identity matrix transposed is itself!
        : [r][n]f32 =
+  -- Primal.
   let xs_sorted   = gather_no_fvs xs query_inds -- NOTE no fvs.
   let x_ws_sorted = gather_no_fvs x_ws query_inds
   let ys_sorted   = gather_no_fvs_safe ys leaf_inds
   let y_ws_sorted = gather_no_fvs_safe y_ws leaf_inds
+  -- The rest of the primal is unneeded.
   -- let new_res0 =
   --   map5 (\ query query_w y y_w leaf_ind ->
   --           if leaf_ind >= i32.i64 num_leaves
@@ -134,6 +137,7 @@ def df_ALL [n][d][num_leaves][ppl][r]
   -- let _new_res1 = transpose new_res0
   -- let new_res = map (reduce (+) 0) new_res1 -- Last step unneeded.
 
+  -- Rev.
   let new_res_bars = resbarsT
   -- let new_res1_bar =
   --   map3 (\r1 r1bar rbar ->
@@ -168,7 +172,6 @@ def df_ALL [n][d][num_leaves][ppl][r]
 
 -- ==
 -- entry: main main_ALL
-
 -- compiled input @ data/5radiuses-iterationSorted-refs-512K-queries-1M.in
 -- output { empty([0][3]f32) }
 def main [q][n][d][num_leaves][ppl][r]

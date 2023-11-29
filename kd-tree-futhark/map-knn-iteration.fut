@@ -124,8 +124,6 @@ def diterationSorted [q][n][d][num_leaves][ppl][r]
   let (qleaves', stacks', dists', query_inds', new_res) =
     iterationSorted max_radius radiuses h kd_tree leaves ws queries
                     query_ws qleaves stacks dists query_inds res
-  -- TODO Eliminate duplicate work by inlining primal here (that is,
-  -- inline both above call and df).
   let (new_res_bar, query_ws_bar) =
     (resbar, -- NOTE resbar does not change.
      df radiuses queries query_ws leaves ws qleaves query_inds query_ws_bar resbar)
@@ -157,8 +155,6 @@ def diterationSorted_ALL [q][n][d][num_leaves][ppl][r]
   let (qleaves', stacks', dists', query_inds', new_res) =
     iterationSorted max_radius radiuses h kd_tree leaves ws queries
                     query_ws qleaves stacks dists query_inds res
-  -- TODO Eliminate duplicate work by inlining primal here (that is,
-  -- inline both above call and df).
   let (new_res_bar, query_ws_bar) =
     (resbar, -- NOTE resbar does not change.
      df_ALL radiuses queries query_ws leaves ws qleaves query_inds query_ws_bar resbar)

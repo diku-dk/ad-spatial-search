@@ -1,5 +1,5 @@
 -- ==
--- entry: revad_by_hand_ALL primal revad revad_by_hand_SINGLE
+-- entry: primal revad revad_by_hand_SINGLE revad_by_hand_ALL revad_by_hand_ALL_inlined
 --
 -- compiled input @ data/kdtree-prop-refs-512K-queries-1M.in
 
@@ -79,8 +79,6 @@ def diff_propagate [m1][m][q][d][n][r]
                          query_ws_bar resbar
   in query_ws_bar'
 
--- TODO Performance bug: this is SLOWER if we remove loop. Also it's
--- orders of magnitude slower than just 'df' despite doing much the same work.
 def diff_propagate_ALL [m1][m][q][d][n][r]
                        (radiuses: [r]f32)
                        (ref_pts: [m][d]f32)
@@ -90,6 +88,30 @@ def diff_propagate_ALL [m1][m][q][d][n][r]
                        (query_ws:[n]f32, ref_ws_orig: [m1]f32)
                        (resbars: [r][r]f32)
                        : [r][n]f32 =
+  let (h, leaves, kd_ws_sort, qleaves, query_inds, dists, stacks,
+       _res_ws, max_radius) =
+    setup radiuses ref_pts indir kd_tree queries ref_ws_orig
+  let query_ws_bar = replicate r (replicate n 0f32)
+  let res = replicate r 0f32
+  let (_qleaves', _stacks', _dists', _query_inds', res, query_ws_bar', _resbar) =
+    loop (qleaves: [n]i32, stacks: [n]i32, dists: [n]f32, query_inds: [n]i32, res, query_ws_bar, resbars)
+      for _i < 8 do
+        diterationSorted_ALL
+          max_radius radiuses h kd_tree leaves kd_ws_sort queries
+          query_ws qleaves stacks dists query_inds
+          res
+          query_ws_bar resbars
+  in query_ws_bar'
+
+def diff_propagate_ALL_inlined [m1][m][q][d][n][r]
+                               (radiuses: [r]f32)
+                               (ref_pts: [m][d]f32)
+                               (indir:   [m]i32)
+                               (kd_tree: [q](i32,f32,i32))
+                               (queries: [n][d]f32)
+                               (query_ws:[n]f32, ref_ws_orig: [m1]f32)
+                               (resbars: [r][r]f32)
+                               : [r][n]f32 =
   let (h, leaves, kd_ws_sort, qleaves, query_inds, dists, stacks,
        _res_ws, max_radius) =
     setup radiuses ref_pts indir kd_tree queries ref_ws_orig
@@ -161,23 +183,27 @@ entry revad_by_hand_ALL [d][n][m][m'][q]
         (indir:     [m']i32)
         (median_dims : [q]i32)
         (median_vals : [q]f32)
-        (clanc_eqdim : [q]i32) : bool =
+        (clanc_eqdim : [q]i32) : [5][n]f32 =
     let r = 5
     let rs = expand_radius r sq_radius
     let kd_tree = (zip3 median_dims median_vals clanc_eqdim)
-
-    -- Using AD.
-    let (expected_query_ws', expected_ref_ws') =
-      let f = propagate rs ref_pts indir kd_tree queries
-      in tabulate r (\i ->
-        vjp f (query_ws, ref_ws) ((replicate r 0f32) with [i] = 1f32)
-      ) |> unzip2
-
-    -- Manual.
     let out_adjs = tabulate r (\i -> (replicate r 0f32) with [i] = 1f32)
-    let got_query_ws' =
-      diff_propagate_ALL rs ref_pts indir kd_tree queries (query_ws, ref_ws) out_adjs
-    in map2 (\x y -> f32.abs (x - y) <= 1e-6)
-            (flatten expected_query_ws')
-            (flatten got_query_ws')
-       |> reduce (&&) true
+    in diff_propagate_ALL rs ref_pts indir kd_tree queries (query_ws, ref_ws) out_adjs
+
+entry revad_by_hand_ALL_inlined [d][n][m][m'][q]
+        (sq_radius: f32)
+        (queries:  [n][d]f32)
+        (query_ws: [n]f32)
+        (ref_ws:   [m]f32)
+        (ref_pts : [m'][d]f32)
+        (indir:     [m']i32)
+        (median_dims : [q]i32)
+        (median_vals : [q]f32)
+        (clanc_eqdim : [q]i32) : [5][n]f32 =
+    let r = 5
+    let rs = expand_radius r sq_radius
+    let kd_tree = (zip3 median_dims median_vals clanc_eqdim)
+    let out_adjs = tabulate r (\i -> (replicate r 0f32) with [i] = 1f32)
+    in diff_propagate_ALL_inlined rs ref_pts indir kd_tree queries (query_ws, ref_ws) out_adjs
+
+-- soooo there's no performance bug? I was just computing the test here?

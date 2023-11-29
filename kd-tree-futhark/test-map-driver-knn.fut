@@ -1,12 +1,10 @@
 -- ==
 -- entry: primal_test
---
 -- compiled input @ data/kdtree-prop-refs-512K-queries-1M.in
 -- output @ data/5radiuses-brute-force-primal-refs-512K-queries-1M.out
 
 -- ==
 -- entry: revad_test
---
 -- compiled input @ data/kdtree-prop-refs-512K-queries-1M.in
 -- output @ data/5radiuses-brute-force-revad-refs-512K-queries-1M.out
 
@@ -47,6 +45,7 @@ entry revad_by_hand_SINGLE_test [d][n][m][m'][q]
     in map2 (\x y -> f32.abs (x - y) <= 1e-6) query_ws_adj manual_query_ws_adj
     -- in map2 (==) query_ws_adj manual_query_ws_adj
        |> reduce (&&) true
+    -- TODO go for equality; then this file also becomes redundant
 
 entry revad_by_hand_ALL_test [d][n][m][m'][q]
         (sq_radius: f32)
@@ -77,3 +76,5 @@ entry revad_by_hand_ALL_test [d][n][m][m'][q]
             (flatten expected_query_ws')
             (flatten got_query_ws')
        |> reduce (&&) true
+    -- in expected_query_ws' == got_query_ws'
+    -- TODO go for equality; then this file also becomes redundant
