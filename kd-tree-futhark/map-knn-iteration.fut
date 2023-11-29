@@ -3,6 +3,7 @@ import "lib/github.com/diku-dk/sorts/radix_sort"
 import "kd-traverse"
 import "util"
 import "diff_bruteforce"
+import "diff_iteration"
 
 def bruteForce [m][d][r]
                (radiuses: [r]f32)
@@ -27,19 +28,6 @@ def bruteForce [m][d][r]
            if dist <= radiuses[k]
            then res' with [k] = res'[k] + wprod
            else res'
-
-def dbruteForce [m][d][r]
-                (radiuses: [r]f32)
-                (x: [d]f32) -- One point from sample 1.
-                (x_w: f32)
-                (ys: [m][d]f32) -- Sample 2.
-                (y_ws: [m]f32)
-                (xbar_w: f32)
-                (ybar_ws: [m]f32)
-                (res_bar: [r]f32)
-                : (f32, [m]f32) =
-  dbruteForce_opt_seq radiuses x x_w ys y_ws xbar_w ybar_ws res_bar
-  -- dbruteForce_opt_soacs radiuses x x_w ys y_ws res_bar
 
 def sortQueriesByLeavesRadix [n] (num_bits: i32) (leaves: [n]i32) : ([n]i32, [n]i32) =
   -- (leaves, map i32.i64 (iota n))
@@ -96,8 +84,6 @@ def iterationSorted [q][n][d][num_leaves][ppl][r]
   let query_inds' = gather query_inds sort_inds
 
   in  (qleaves', stacks', dists', query_inds', map2 (+) res new_res)
-
-import "diff_iteration"
 
 def diterationSorted [q][n][d][num_leaves][ppl][r]
       (max_radius: f32)
