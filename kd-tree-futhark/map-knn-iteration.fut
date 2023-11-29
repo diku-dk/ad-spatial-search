@@ -103,18 +103,18 @@ def diterationSorted [q][n][d][num_leaves][ppl][r]
       (res:  [r]f32)
       -- adjoints:
       (query_ws_bar:  [n]f32)         -- x_ws
-      -- (ws_bar:  [num_leaves][ppl]f32) -- y_ws
+      (ws_bar:  [num_leaves][ppl]f32) -- y_ws
       (resbar:  [r]f32)
-      : ([n]i32, [n]i32, [n]f32, [n]i32, [r]f32, [n]f32, [r]f32) =
+      : ([n]i32, [n]i32, [n]f32, [n]i32, [r]f32, [n]f32, [num_leaves][ppl]f32, [r]f32) =
   -- Run primal for control-flow variables.
   let (qleaves', stacks', dists', query_inds', new_res) =
     iterationSorted max_radius radiuses h kd_tree leaves ws queries
                     query_ws qleaves stacks dists query_inds res
-  let (new_res_bar, query_ws_bar) =
+  let (new_res_bar, (query_ws_bar, ws_bar)) =
     (resbar, -- NOTE resbar does not change.
-     df radiuses queries query_ws leaves ws qleaves query_inds query_ws_bar resbar)
+     df radiuses queries query_ws leaves ws qleaves query_inds query_ws_bar ws_bar resbar)
 
-  in (qleaves', stacks', dists', query_inds', new_res, query_ws_bar, new_res_bar)
+  in (qleaves', stacks', dists', query_inds', new_res, query_ws_bar, ws_bar, new_res_bar)
 
 def diterationSorted_ALL [q][n][d][num_leaves][ppl][r]
       (max_radius: f32)
@@ -133,18 +133,18 @@ def diterationSorted_ALL [q][n][d][num_leaves][ppl][r]
       (query_inds:  [n]i32)
       (res:  [r]f32)
       -- adjoints:
-      (query_ws_bar: [r][n]f32)         -- x_ws
-      -- (ws_bar:  [num_leaves][ppl]f32) -- y_ws
+      (query_ws_bar: [r][n]f32)          -- x_ws
+      (ws_bar:  [r][num_leaves][ppl]f32) -- y_ws
       (resbar:  [r][r]f32)
-      : ([n]i32, [n]i32, [n]f32, [n]i32, [r]f32, [r][n]f32, [r][r]f32) =
+      : ([n]i32, [n]i32, [n]f32, [n]i32, [r]f32, [r][n]f32, [r][num_leaves][ppl]f32, [r][r]f32) =
   -- Run primal for control-flow variables.
   let (qleaves', stacks', dists', query_inds', new_res) =
     iterationSorted max_radius radiuses h kd_tree leaves ws queries
                     query_ws qleaves stacks dists query_inds res
-  let (new_res_bar, query_ws_bar) =
+  let (new_res_bar, (query_ws_bar, ws_bar)) =
     (resbar, -- NOTE resbar does not change.
-     df_ALL radiuses queries query_ws leaves ws qleaves query_inds query_ws_bar resbar)
-  in (qleaves', stacks', dists', query_inds', new_res, query_ws_bar, new_res_bar)
+     df_ALL radiuses queries query_ws leaves ws qleaves query_inds query_ws_bar ws_bar resbar)
+  in (qleaves', stacks', dists', query_inds', new_res, query_ws_bar, ws_bar, new_res_bar)
 
 -- Eliminate duplicate work by inlining primal and df.
 def diterationSorted_ALL_inlined [q][n][d][num_leaves][ppl][r]
@@ -164,9 +164,9 @@ def diterationSorted_ALL_inlined [q][n][d][num_leaves][ppl][r]
       (query_inds:  [n]i32)
       -- adjoints:
       (query_ws_bar: [r][n]f32)         -- x_ws
-      -- (ws_bar:  [num_leaves][ppl]f32) -- y_ws
+      (ws_bar:  [r][num_leaves][ppl]f32) -- y_ws
       (resbars:  [r][r]f32)
-      : ([n]i32, [n]i32, [n]f32, [n]i32, [r][n]f32, [r][r]f32) =
+      : ([n]i32, [n]i32, [n]f32, [n]i32, [r][n]f32, [r][num_leaves][ppl]f32, [r][r]f32) =
   -- PRIMAL (new_res modified to keep intermediate results).
   let queries_sorted = gather queries  query_inds
   let query_ws_sorted= gather query_ws query_inds
@@ -206,6 +206,7 @@ def diterationSorted_ALL_inlined [q][n][d][num_leaves][ppl][r]
   let x_ws_sorted = query_ws_sorted
   let leaf_inds = qleaves
   let x_ws_bars = query_ws_bar
+  let y_ws_bars = ws_bar
 
   let ys_sorted = gather_no_fvs_safe leaves qleaves
   let y_ws_sorted = gather_no_fvs_safe ws qleaves
@@ -213,24 +214,29 @@ def diterationSorted_ALL_inlined [q][n][d][num_leaves][ppl][r]
   let new_res_bars = resbars -- Actually transposed here.
   let new_res1_bars = map (replicate n) new_res_bars
   let new_res0_bars = transpose new_res1_bars
-  let x_ws_sorted_bar = map3 (\(x, x_w, y, y_w) leaf_ind res0barsT ->
-    -- Primal unneeded.
-    -- Rev.
-    let res0bars: [r][r]f32 = transpose res0barsT -- NOTE transpose.
-    let x_w_bar = replicate r 0
-    let y_w_bar = replicate r (replicate ppl 0)
-    let x_w_bar =
-      if leaf_ind >= i32.i64 num_leaves
-      then replicate r 0f32
-      else
-        (dbruteForce_opt_seq_ALL radiuses x x_w y y_w x_w_bar y_w_bar res0bars).0
-    in x_w_bar
-  ) (zip4 xs_sorted x_ws_sorted ys_sorted y_ws_sorted) leaf_inds new_res0_bars
+  let (x_ws_sorted_bar, y_ws_sorted_bar) =
+    map3 (\(x, x_w, y, y_w) leaf_ind res0barsT ->
+      -- Primal unneeded.
+      -- Rev.
+      let res0bars: [r][r]f32 = transpose res0barsT -- NOTE transpose.
+      let x_w_bar = replicate r 0
+      let y_w_bar = replicate r (replicate ppl 0)
+      let x_w_bar =
+        if leaf_ind >= i32.i64 num_leaves
+        then (x_w_bar, y_w_bar)
+        else
+          dbruteForce_opt_seq_ALL radiuses x x_w y y_w x_w_bar y_w_bar res0bars
+      in x_w_bar
+    ) (zip4 xs_sorted x_ws_sorted ys_sorted y_ws_sorted) leaf_inds new_res0_bars
+    |> unzip
 
   let x_ws_bars =
     map2 (\x -> dgather_f32 x query_inds) x_ws_bars (transpose x_ws_sorted_bar)
+  let y_ws_bars =
+    map2 (\x -> dgather_safe_f32 x leaf_inds) y_ws_bars (transpose y_ws_sorted_bar)
 
   let query_ws_bar = x_ws_bars
+  let ws_bar = y_ws_bars
   let new_res_bar = resbars -- NOTE unchanged.
 
-  in (qleaves', stacks', dists', query_inds', query_ws_bar, new_res_bar)
+  in (qleaves', stacks', dists', query_inds', query_ws_bar, ws_bar, new_res_bar)

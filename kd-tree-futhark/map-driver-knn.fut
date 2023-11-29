@@ -66,18 +66,22 @@ def diff_propagate [m1][m][q][d][n][r]
               (queries: [n][d]f32)
               (query_ws:[n]f32, ref_ws_orig: [m1]f32)
               (resbar: [r]f32)
-              : [n]f32 =
+              : ([n]f32, [m1]f32) =
   let (h, leaves, kd_ws_sort, qleaves, query_inds, dists, stacks,
        res_ws, max_radius) =
     setup radiuses ref_pts indir kd_tree queries ref_ws_orig
   let query_ws_bar = replicate n 0f32
-  let (_qleaves', _stacks', _dists', _query_inds', _res_ws', query_ws_bar', _resbar) =
-    loop (qleaves: [n]i32, stacks: [n]i32, dists: [n]f32, query_inds: [n]i32, res_ws: [r]f32, query_ws_bar, resbar)
+  let kd_ws_bar = replicate (q + 1) (replicate (m / (q + 1)) 0f32)
+  let (_qleaves', _stacks', _dists', _query_inds', _res_ws', query_ws_bar', kd_ws_bar', _resbar) =
+    loop (qleaves: [n]i32, stacks: [n]i32, dists: [n]f32, query_inds: [n]i32, res_ws: [r]f32, query_ws_bar, kd_ws_bar, resbar)
       for _i < 8 do
         diterationSorted max_radius radiuses h kd_tree leaves kd_ws_sort queries
                          query_ws qleaves stacks dists query_inds res_ws
-                         query_ws_bar resbar
-  in query_ws_bar'
+                         query_ws_bar kd_ws_bar resbar
+  -- Reverse pass of setup (kd_ws was expanded in setup; contract).
+  let kd_ws_bar' = sized m (flatten kd_ws_bar')
+  let kd_ws_bar' = scatter (replicate m1 0f32) (map i64.i32 indir) kd_ws_bar'
+  in (query_ws_bar', kd_ws_bar')
 
 def diff_propagate_ALL [m1][m][q][d][n][r]
                        (radiuses: [r]f32)
@@ -87,21 +91,28 @@ def diff_propagate_ALL [m1][m][q][d][n][r]
                        (queries: [n][d]f32)
                        (query_ws:[n]f32, ref_ws_orig: [m1]f32)
                        (resbars: [r][r]f32)
-                       : [r][n]f32 =
+                       : ([r][n]f32, [r][m1]f32) =
   let (h, leaves, kd_ws_sort, qleaves, query_inds, dists, stacks,
        _res_ws, max_radius) =
     setup radiuses ref_pts indir kd_tree queries ref_ws_orig
   let query_ws_bar = replicate r (replicate n 0f32)
+  let kd_ws_bar = replicate r (replicate (q + 1) (replicate (m / (q + 1)) 0f32))
   let res = replicate r 0f32
-  let (_qleaves', _stacks', _dists', _query_inds', res, query_ws_bar', _resbar) =
-    loop (qleaves: [n]i32, stacks: [n]i32, dists: [n]f32, query_inds: [n]i32, res, query_ws_bar, resbars)
+  let (_qleaves', _stacks', _dists', _query_inds', _res_ws', query_ws_bar', kd_ws_bar', _resbar) =
+    loop (qleaves: [n]i32, stacks: [n]i32, dists: [n]f32, query_inds: [n]i32, res, query_ws_bar, kd_ws_bar, resbars)
       for _i < 8 do
         diterationSorted_ALL
           max_radius radiuses h kd_tree leaves kd_ws_sort queries
           query_ws qleaves stacks dists query_inds
           res
-          query_ws_bar resbars
-  in query_ws_bar'
+          query_ws_bar kd_ws_bar resbars
+  -- Reverse pass of setup.
+  let kd_ws_bar' = map (\x ->
+    let x = sized m (flatten x)
+    let x = scatter (replicate m1 0f32) (map i64.i32 indir) x
+    in x
+  ) kd_ws_bar'
+  in (query_ws_bar', kd_ws_bar')
 
 def diff_propagate_ALL_inlined [m1][m][q][d][n][r]
                                (radiuses: [r]f32)
@@ -111,19 +122,26 @@ def diff_propagate_ALL_inlined [m1][m][q][d][n][r]
                                (queries: [n][d]f32)
                                (query_ws:[n]f32, ref_ws_orig: [m1]f32)
                                (resbars: [r][r]f32)
-                               : [r][n]f32 =
+                               : ([r][n]f32, [r][m1]f32) =
   let (h, leaves, kd_ws_sort, qleaves, query_inds, dists, stacks,
        _res_ws, max_radius) =
     setup radiuses ref_pts indir kd_tree queries ref_ws_orig
   let query_ws_bar = replicate r (replicate n 0f32)
-  let (_qleaves', _stacks', _dists', _query_inds', query_ws_bar', _resbar) =
-    loop (qleaves: [n]i32, stacks: [n]i32, dists: [n]f32, query_inds: [n]i32, query_ws_bar, resbars)
+  let kd_ws_bar = replicate r (replicate (q + 1) (replicate (m / (q + 1)) 0f32))
+  let (_qleaves', _stacks', _dists', _query_inds', query_ws_bar', kd_ws_bar', _resbar) =
+    loop (qleaves: [n]i32, stacks: [n]i32, dists: [n]f32, query_inds: [n]i32, query_ws_bar, kd_ws_bar, resbars)
       for _i < 8 do
         diterationSorted_ALL_inlined
           max_radius radiuses h kd_tree leaves kd_ws_sort queries
           query_ws qleaves stacks dists query_inds
-          query_ws_bar resbars
-  in query_ws_bar'
+          query_ws_bar kd_ws_bar resbars
+  -- Reverse pass of setup.
+  let kd_ws_bar' = map (\x ->
+    let x = sized m (flatten x)
+    let x = scatter (replicate m1 0f32) (map i64.i32 indir) x
+    in x
+  ) kd_ws_bar'
+  in (query_ws_bar', kd_ws_bar')
 
 entry primal [d][n][m][m'][q]
         (sq_radius: f32)
@@ -202,7 +220,7 @@ entry revad_by_hand [d][n][m][m'][q]
         (indir:     [m']i32)
         (median_dims : [q]i32)
         (median_vals : [q]f32)
-        (clanc_eqdim : [q]i32) : [5][n]f32 =
+        (clanc_eqdim : [q]i32) =
     let r = 5
     let rs = expand_radius r sq_radius
     let kd_tree = (zip3 median_dims median_vals clanc_eqdim)
@@ -218,11 +236,11 @@ entry revad_by_hand_inlined [d][n][m][m'][q]
         (indir:     [m']i32)
         (median_dims : [q]i32)
         (median_vals : [q]f32)
-        (clanc_eqdim : [q]i32) : [5][n]f32 =
+        (clanc_eqdim : [q]i32) =
     let r = 5
     let rs = expand_radius r sq_radius
     let kd_tree = (zip3 median_dims median_vals clanc_eqdim)
     let out_adjs = tabulate r (\i -> (replicate r 0f32) with [i] = 1f32)
     in diff_propagate_ALL_inlined rs ref_pts indir kd_tree queries (query_ws, ref_ws) out_adjs
 
--- soooo there's no performance bug? I was just computing the test here?
+-- Sooo something is making this version slooow

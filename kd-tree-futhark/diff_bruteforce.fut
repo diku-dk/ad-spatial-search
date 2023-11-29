@@ -164,9 +164,8 @@ def dbruteForce_opt_seq [m][d][r]
       -- Rev.
       let wprodbar = dupdate_opt radiuses dist 0 out_adj
       let xbar_w = xbar_w + y_w * wprodbar
-      -- ybar0_ws[i] is zero, so no need to read this value.
+      -- ybar0_ws[i] is zero, so no need to read this value below?
       let ybar_ws = ybar_ws with [i] = ybar_ws[i] + x_w * wprodbar
-      -- let ybar_ws = ybar_ws with [i] = x_w * wprodbar
       in (xbar_w, ybar_ws)
   in fvsbar
 
@@ -176,14 +175,17 @@ def dbruteForce_opt_seq_ALL [m][d][r]
                             (x_w: f32)
                             (ys: [m][d]f32) -- Sample 2.
                             (y_ws: [m]f32)
-                            (xbar_ws: [r]f32)
-                            (ybar_wss: [r][m]f32)
+                            (xbar_ws: *[r]f32)
+                            (ybar_wss: *[r][m]f32)
                             (out_adjs: [r][r]f32)
                             : ([r]f32, [r][m]f32) =
   -- Primal with checkpointing unneeded.
   -- Differentiate w.r.t. free variables x_w and y_ws.
-  let fvsbar =
-    loop (xbar_ws, ybar_wss) = (xbar_ws, ybar_wss)
+  let (xbar_ws, ybar_wssT) =
+    -- NOTE trasnspose ybar_wss to avoid copying inside loop (doing
+    -- that results in unsliceable allocation compiler limitation).
+    -- See git history for non-transposed version.
+    loop (xbar_ws, ybar_wssT) = (xbar_ws, transpose (copy ybar_wss)) -- TODO why does copying here speed things up by 2-3x??
     for i in reverse (iota m) do
       -- Restore unneeded.
       -- Fwd.
@@ -192,12 +194,31 @@ def dbruteForce_opt_seq_ALL [m][d][r]
       -- Rev.
       let wprodbars = dupdate_opt_ALL radiuses dist 0 out_adjs
       let xbar_ws = map2 (\xbar_w wprodbar -> xbar_w + y_w * wprodbar) xbar_ws wprodbars
-      -- ybar0_ws[i] is zero, so no need to read this value.
-      -- TODO prevent copy here.
-      --      Probably want to transpose out_adjs, so we enumerate over inner dimension.
-      let ybar_wss = map2 (\ybar_ws wprodbar -> (copy ybar_ws) with [i] = ybar_ws[i] + x_w * wprodbar) ybar_wss wprodbars
-      in (xbar_ws, ybar_wss)
+      let column_upd = map2 (\ybar_w wprodbar -> ybar_w + x_w * wprodbar)
+                            (ybar_wssT[i]) wprodbars
+      let ybar_wssT = ybar_wssT with [i] = column_upd
+      in (xbar_ws, ybar_wssT)
+  let fvsbar = (xbar_ws, transpose ybar_wssT)
   in fvsbar
+      -- -- Rev.
+      -- -- let wprodbars = dupdate_opt_ALL radiuses dist 0 out_adjs
+      -- let (wprodbars, xbar_ws) = map2 (\resbar xbar_w ->
+      --   let (_, wprodbar) =
+      --     loop (resbar, wprodbar) = (resbar, 0)
+      --     for k in iota r do -- reverse . reverse.
+      --       -- Restore unneeded.
+      --       -- Fwd unneeded.
+      --       -- Rev.
+      --       let wprodbar' = wprodbar + (if dist <= radiuses[k] then 1 else 0) * resbar[k]
+      --       in (resbar, wprodbar')
+      --   let xbar_w = xbar_w + y_w * wprodbar
+      --   in (wprodbar, xbar_w)
+      -- ) out_adjs xbar_ws
+      -- |> unzip
+      -- -- let xbar_ws = map2 (\xbar_w wprodbar -> xbar_w + y_w * wprodbar) xbar_ws wprodbars
+      -- let column_upd = map2 (\ybar_w wprodbar -> ybar_w + x_w * wprodbar)
+      --                       (ybar_wssT[i]) wprodbars
+      -- let ybar_wssT = ybar_wssT with [i] = column_upd
 
 def dbruteForce_opt_soacs [m][d][r]
                           (radiuses: [r]f32)
@@ -222,7 +243,8 @@ def dbruteForce_opt_soacs [m][d][r]
   in (xbar_w + reduce (+) 0 xbar_w', ybar_ws)
 
 -- ==
--- compiled input @ data/5radiuses-brute-force-input-refs-512K-queries-1M.out
+-- entry: main main_ALL
+-- nobench compiled input @ data/5radiuses-brute-force-input-refs-512K-queries-1M.out
 -- output { true true }
 def main [m][d][n][r]
          (radiuses: [r]f32)
@@ -251,10 +273,6 @@ def main [m][d][n][r]
     in (expected_x == got_x, expected_y == got_y)
  ) (iota n) |> reduce (\(x,x') (y,y') -> (x && x', y && y')) (true, true)
 
--- ==
--- entry: main_ALL
--- compiled input @ data/5radiuses-brute-force-input-refs-512K-queries-1M.out
--- output { true true }
 entry main_ALL [m][d][n][r]
          (radiuses: [r]f32)
          (xs: [n][d]f32) -- One point from sample 1.
@@ -281,6 +299,34 @@ entry main_ALL [m][d][n][r]
     -- let got_x = #[trace(got_x)] got_x
     in (expected_x == got_x, expected_y == got_y)
  ) (iota n) |> reduce (\(x,x') (y,y') -> (x && x', y && y')) (true, true)
+
+-- ==
+-- entry: bench_manual bench_ad
+-- compiled input @ data/5radiuses-brute-force-input-refs-512K-queries-1M.out
+entry bench_manual [m][d][n][r]
+         (radiuses: [r]f32)
+         (xs: [n][d]f32) -- One point from sample 1.
+         (x_ws: [n]f32)
+         (ys: [m][d]f32) -- Sample 2.
+         (y_ws: [m]f32) =
+  let i = 0
+  let (x, x_w) = (xs[i], x_ws[i])
+  let out_adjs = tabulate r (\i -> (replicate r 0f32) with [i] = 1f32)
+  let xbar_w0 = replicate r 0f32
+  let ybar_ws0 = replicate r (replicate m 0f32)
+  in dbruteForce_opt_seq_ALL radiuses x x_w ys y_ws xbar_w0 ybar_ws0 out_adjs
+
+entry bench_ad [m][d][n][r]
+         (radiuses: [r]f32)
+         (xs: [n][d]f32) -- One point from sample 1.
+         (x_ws: [n]f32)
+         (ys: [m][d]f32) -- Sample 2.
+         (y_ws: [m]f32) =
+  let i = 0
+  let (x, x_w) = (xs[i], x_ws[i])
+  let f (x_w, y_ws) = bruteForce radiuses x x_w ys y_ws
+  let out_adjs = tabulate r (\i -> (replicate r 0f32) with [i] = 1f32)
+  in unzip <| map (vjp f (x_w, y_ws)) out_adjs
 
 -- -- ==
 -- -- entry: test_update
