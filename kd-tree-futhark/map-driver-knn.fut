@@ -1,5 +1,5 @@
 -- ==
--- entry: primal revad revad_by_hand_SINGLE revad_by_hand_ALL revad_by_hand_ALL_inlined
+-- entry: primal revad revad_one_direction revad_by_hand_one_direction revad_by_hand revad_by_hand_inlined
 --
 -- compiled input @ data/kdtree-prop-refs-512K-queries-1M.in
 
@@ -139,6 +139,25 @@ entry primal [d][n][m][m'][q]
     let tree = (zip3 median_dims median_vals clanc_eqdim)
     in propagate rs refs_pts indir tree queries (query_ws, ref_ws)
 
+
+entry revad_one_direction [d][n][m][m'][q]
+        (sq_radius: f32)
+        (queries:  [n][d]f32)
+        (query_ws: [n]f32)
+        (ref_ws:   [m]f32)
+        (refs_pts : [m'][d]f32)
+        (indir:     [m']i32)
+        (median_dims : [q]i32)
+        (median_vals : [q]f32)
+        (clanc_eqdim : [q]i32) : ([n]f32, [m]f32) =
+    let r = 5
+    let dir = (replicate r 0f32) with [0] = 1f32
+    let rs = expand_radius r sq_radius
+    let tree = (zip3 median_dims median_vals clanc_eqdim)
+
+    let f = propagate rs refs_pts indir tree queries
+    in vjp f (query_ws, ref_ws) dir
+
 entry revad [d][n][m][m'][q]
         (sq_radius: f32)
         (queries:  [n][d]f32)
@@ -158,7 +177,7 @@ entry revad [d][n][m][m'][q]
       vjp f (query_ws, ref_ws) ((replicate r 0f32) with [i] = 1f32)
     ) |> unzip2
 
-entry revad_by_hand_SINGLE [d][n][m][m'][q]
+entry revad_by_hand_one_direction [d][n][m][m'][q]
         (sq_radius: f32)
         (queries:  [n][d]f32)
         (query_ws: [n]f32)
@@ -167,14 +186,14 @@ entry revad_by_hand_SINGLE [d][n][m][m'][q]
         (indir:     [m']i32)
         (median_dims : [q]i32)
         (median_vals : [q]f32)
-        (clanc_eqdim : [q]i32) : [n]f32 =
-    -- SINGLE DIRECTION:
-    let DIR = (replicate 5 0f32) with [0] = 1f32
-    let rs = expand_radius 5 sq_radius
+        (clanc_eqdim : [q]i32) =
+    let r = 5
+    let rs = expand_radius r sq_radius
+    let dir = (replicate r 0f32) with [0] = 1f32
     let tree = (zip3 median_dims median_vals clanc_eqdim)
-    in diff_propagate rs refs_pts indir tree queries (query_ws, ref_ws) DIR
+    in diff_propagate rs refs_pts indir tree queries (query_ws, ref_ws) dir
 
-entry revad_by_hand_ALL [d][n][m][m'][q]
+entry revad_by_hand [d][n][m][m'][q]
         (sq_radius: f32)
         (queries:  [n][d]f32)
         (query_ws: [n]f32)
@@ -190,7 +209,7 @@ entry revad_by_hand_ALL [d][n][m][m'][q]
     let out_adjs = tabulate r (\i -> (replicate r 0f32) with [i] = 1f32)
     in diff_propagate_ALL rs ref_pts indir kd_tree queries (query_ws, ref_ws) out_adjs
 
-entry revad_by_hand_ALL_inlined [d][n][m][m'][q]
+entry revad_by_hand_inlined [d][n][m][m'][q]
         (sq_radius: f32)
         (queries:  [n][d]f32)
         (query_ws: [n]f32)
