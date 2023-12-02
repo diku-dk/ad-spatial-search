@@ -161,19 +161,20 @@ def df_ALL [n][d][num_leaves][ppl][r]
   -- The above is equivalent to the following line.
   let new_res1_bars = map (replicate n) new_res_bars
   let new_res0_bars = transpose new_res1_bars
-  let (x_ws_sorted_bar: [n][r]f32, y_ws_sorted_bar: [n][r][ppl]f32) =
+  -- y_ws_sorted_bar are computed transposed below for efficiency.
+  let (x_ws_sorted_bar: [n][r]f32, y_ws_sorted_barT: [n][ppl][r]f32) =
     map3 (\(x, x_w, y, y_w) leaf_ind res0barsT ->
       -- Primal unneeded.
       -- Rev.
       let res0bars: [r][r]f32 = transpose res0barsT -- NOTE transpose here (see resbarsT)!
       let x_w_bar = replicate r 0
-      let y_w_bar = replicate r (replicate ppl 0)
-      let (x_w_bar: [r]f32, y_w_bar: [r][ppl]f32) =
+      let y_w_barT = replicate ppl (replicate r 0)
+      let (x_w_bar: [r]f32, y_w_barT: [ppl][r]f32) =
         if leaf_ind >= i32.i64 num_leaves
-        then (x_w_bar, y_w_bar)
+        then (x_w_bar, y_w_barT)
         else
-          dbruteForce_opt_seq_ALL radiuses x x_w y y_w x_w_bar y_w_bar res0bars
-      in (x_w_bar, y_w_bar)
+          #[sequential] dbruteForce_opt_seq_ALL_T radiuses x x_w y y_w x_w_bar y_w_barT res0bars
+      in (x_w_bar, y_w_barT)
     ) (zip4 xs_sorted x_ws_sorted ys_sorted y_ws_sorted) leaf_inds new_res0_bars
     |> unzip
 
@@ -181,7 +182,7 @@ def df_ALL [n][d][num_leaves][ppl][r]
   let x_ws_bars =
     map2 (\x -> dgather_f32 x query_inds) x_ws_bars (transpose x_ws_sorted_bar)
   let y_ws_bars =
-    map2 (\x -> dgather_safe_f32 x leaf_inds) y_ws_bars (transpose y_ws_sorted_bar)
+    map2 (\x -> dgather_safe_f32 x leaf_inds) y_ws_bars (transpose (map transpose y_ws_sorted_barT))
   in (x_ws_bars, y_ws_bars)
 
 -- ==

@@ -220,27 +220,33 @@ def dbruteForce_opt_seq_ALL [m][d][r]
       --                       (ybar_wssT[i]) wprodbars
       -- let ybar_wssT = ybar_wssT with [i] = column_upd
 
-def dbruteForce_opt_soacs [m][d][r]
-                          (radiuses: [r]f32)
-                          (x: [d]f32) -- One point from sample 1.
-                          (x_w: f32)
-                          (ys: [m][d]f32) -- Sample 2.
-                          (y_ws: [m]f32)
-                          (xbar_w: f32)
-                          (ybar_ws: [m]f32)
-                          (out_adj: [r]f32)
-                          : (f32, [m]f32) =
+def dbruteForce_opt_seq_ALL_T [m][d][r]
+                            (radiuses: [r]f32)
+                            (x: [d]f32) -- One point from sample 1.
+                            (x_w: f32)
+                            (ys: [m][d]f32) -- Sample 2.
+                            (y_ws: [m]f32)
+                            (xbar_ws: [r]f32)
+                            (ybar_wssT: [m][r]f32)
+                            (out_adjs: [r][r]f32)
+                            : ([r]f32, [m][r]f32) =
   -- Primal with checkpointing unneeded.
   -- Differentiate w.r.t. free variables x_w and y_ws.
-  let (xbar_w', ybar_ws) = unzip <| map3 (\y y_w ybar_w ->
-    let dist = dist_sq x y
-    -- Rev.
-    let wprodbar = dupdate_opt radiuses dist 0 out_adj
-    let xbar_w = y_w * wprodbar
-    let ybar_w = ybar_w + x_w * wprodbar
-    in (xbar_w, ybar_w)
-  ) ys y_ws ybar_ws
-  in (xbar_w + reduce (+) 0 xbar_w', ybar_ws)
+  let fvsbar =
+    loop (xbar_ws, ybar_wssT) = (xbar_ws, (copy ybar_wssT)) -- TODO why does copying here speed things up by 2-3x??
+    for i in reverse (iota m) do
+      -- Restore unneeded.
+      -- Fwd.
+      let (y, y_w) = (ys[i], y_ws[i])
+      let dist = dist_sq x y
+      -- Rev.
+      let wprodbars = dupdate_opt_ALL radiuses dist 0 out_adjs
+      let xbar_ws = map2 (\xbar_w wprodbar -> xbar_w + y_w * wprodbar) xbar_ws wprodbars
+      let column_upd = map2 (\ybar_w wprodbar -> ybar_w + x_w * wprodbar)
+                            (ybar_wssT[i]) wprodbars
+      let ybar_wssT = ybar_wssT with [i] = column_upd
+      in (xbar_ws, ybar_wssT)
+  in fvsbar
 
 -- ==
 -- entry: main main_ALL

@@ -242,5 +242,3 @@ entry revad_by_hand_inlined [d][n][m][m'][q]
     let kd_tree = (zip3 median_dims median_vals clanc_eqdim)
     let out_adjs = tabulate r (\i -> (replicate r 0f32) with [i] = 1f32)
     in diff_propagate_ALL_inlined rs ref_pts indir kd_tree queries (query_ws, ref_ws) out_adjs
-
--- Sooo something is making this version slooow
